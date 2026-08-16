@@ -446,37 +446,36 @@
 
     const MOB_TYPES = ['67','Pig','Cow','Sheep','Horse','Cave Golem','Draugr Zombie','Draugr Skeleton','Frost Golem','Frost Zombie','Frost Skeleton','Draugr Knight','Wolf','Bear','Deer','Stag','Gold Watermelon Stag','Gorilla','Wildcat','Magma Golem','Draugr Huntress','Spirit Golem','Spirit Wolf','Spirit Bear','Spirit Stag','Spirit Gorilla','Draugr Warper','Frost Wraith','Draugr Reaver','NPC','Bobino Musculino','Capitano Explovissimo'];
 
+    const encoder = new TextEncoder();
+
     async function streamGenerateJsonBlob(buf, parsedEntities) {
       const statusEl = document.getElementById('jsonStatus');
       statusEl.innerText = "Generating JSON Blob...";
 
-      const chunks = [];
-      chunks.push('{\n  "metadata": {\n');
-      chunks.push(`    "fileName": ${JSON.stringify(fileName)},\n`);
-      chunks.push(`    "fileSizeHex": "0x${buf.length.toString(16)}",\n`);
-      chunks.push(`    "fileSizeBytes": ${buf.length}\n`);
-      chunks.push('  },\n  "entitiesAndWorld": ');
-      chunks.push(JSON.stringify(parsedEntities, null, 2));
-      chunks.push(',\n  "rawStreamRecords": [\n');
+      const parts = [];
+      parts.push(encoder.encode('{\n  "metadata": {\n'));
+      parts.push(encoder.encode(`    "fileName": ${JSON.stringify(fileName)},\n`));
+      parts.push(encoder.encode(`    "fileSizeHex": "0x${buf.length.toString(16)}",\n`));
+      parts.push(encoder.encode(`    "fileSizeBytes": ${buf.length}\n`));
+      parts.push(encoder.encode('  },\n  "entitiesAndWorld": '));
+      parts.push(encoder.encode(JSON.stringify(parsedEntities, null, 2)));
+      parts.push(encoder.encode(',\n  "rawStreamRecords": [\n'));
 
       let off = 0;
       let first = true;
-      let recordCount = 0;
-      let lastYield = Date.now();
+      let lastYield = performance.now();
 
       while (off < buf.length) {
-        if (Date.now() - lastYield > 12) {
-          statusEl.innerText = `Processing JSON Stream... ${(off / buf.length * 100).toFixed(0)}%`;
-          await new Promise(r => setTimeout(r, 0));
-          lastYield = Date.now();
+        if (performance.now() - lastYield > 16) {
+          statusEl.innerText = `Processing JSON Stream... ${(off / buf.length * 100).toFixed(1)}%`;
+          await new Promise(resolve => requestAnimationFrame(resolve));
+          lastYield = performance.now();
         }
 
         try {
           const recStart = off;
           const unionIdx = readAvroLong(buf, off);
           off = unionIdx.next;
-
-          let itemObj = null;
 
           if (unionIdx.value === 3) {
             const rx = readAvroLong(buf, off); off = rx.next;
@@ -485,53 +484,42 @@
             const rf = readAvroLong(buf, off); off = rf.next;
             const rl = readAvroLong(buf, off); off = rl.next;
             
-            const rawRLE = buf.subarray(off, off + rl.value);
+            const rleOffset = off;
             off += rl.value;
 
-            itemObj = {
-              offset: recStart,
-              type: 'TerrainChunk',
-              coordinates: { x: rx.value, y: ry.value, z: rz.value },
-              flags: rf.value,
-              rleByteLength: rl.value,
-              rawRleBytes: Array.from(rawRLE)
-            };
+            const headerStr = `${first ? '' : ',\n'}    {"offset":${recStart},"type":"TerrainChunk","coordinates":{"x":${rx.value},"y":${ry.value},"z":${rz.value}},"flags":${rf.value},"rleByteLength":${rl.value},"rawRleBytes":[` ;
+            parts.push(encoder.encode(headerStr));
+            parts.push(buf.subarray(rleOffset, rleOffset + rl.value));
+            parts.push(encoder.encode(']}'));
+            first = false;
           } else {
             try {
               const strRes = readAvroString(buf, recStart);
               if (strRes.value && strRes.value.length > 0 && /^[\x20-\x7E]+$/.test(strRes.value)) {
-                itemObj = { offset: recStart, type: 'StringEntry', value: strRes.value };
+                const itemStr = `${first ? '' : ',\n'}    {"offset":${recStart},"type":"StringEntry","value":${JSON.stringify(strRes.value)}}`;
+                parts.push(encoder.encode(itemStr));
+                first = false;
                 off = strRes.next;
               }
             } catch {}
-          }
-
-          if (itemObj) {
-            if (!first) chunks.push(',\n');
-            chunks.push('    ' + JSON.stringify(itemObj));
-            first = false;
-            recordCount++;
-          } else {
-            off++;
           }
         } catch {
           off++;
         }
       }
 
-      chunks.push('\n  ]\n}');
-      
-      const blob = new Blob(chunks, { type: 'application/json' });
+      parts.push(encoder.encode('\n  ]\n}'));
+
       if (jsonBlobUrl) URL.revokeObjectURL(jsonBlobUrl);
+      const blob = new Blob(parts, { type: 'application/json' });
       jsonBlobUrl = URL.createObjectURL(blob);
-      
+
       statusEl.innerText = "JSON Ready";
       document.getElementById('btnDownloadJson').disabled = false;
     }
 
     function parseReplay(buf) {
-      const enc = new TextEncoder();
-      const entityTypeMarkers = findAll(buf, enc.encode('\x2a\x00\x06'));
+      const entityTypeMarkers = findAll(buf, encoder.encode('\x2a\x00\x06'));
 
       function nextEntityBoundary(after) {
         let lo = 0, hi = entityTypeMarkers.length;
@@ -540,7 +528,7 @@
       }
 
       const playerOccurrences = [];
-      const playerBytes = enc.encode('Player');
+      const playerBytes = encoder.encode('Player');
       for (const typeOff of findAll(buf, playerBytes)) {
         if (typeOff >= 4 && buf[typeOff-4] === 0x2a && buf[typeOff-3] === 0x00 && buf[typeOff-2] === 0x06 && buf[typeOff-1] === 0x0c) {
           const recordStart = typeOff - 4;
@@ -586,9 +574,9 @@
 
       const mobs = [];
       for (const t of MOB_TYPES) {
-        for (const off of findAll(buf, enc.encode(t))) {
+        for (const off of findAll(buf, encoder.encode(t))) {
           const maxEnd = Math.min(nextEntityBoundary(off), off + 4096);
-          let q = off + enc.encode(t).length;
+          let q = off + encoder.encode(t).length;
           const posMarker = seekTag(buf, q, 0x04, 0x08, maxEnd, 32); if (posMarker < 0) continue;
           const pos = parseVec3AfterTag(buf, posMarker, 0x04, maxEnd); if (!pos) continue;
           q = pos.next;
@@ -609,7 +597,7 @@
       const meshRecords = [];
       const spawnerMap = new Map();
       const chestMap = new Map();
-      for (const off of findAll(buf, enc.encode('Mesh|'))) {
+      for (const off of findAll(buf, encoder.encode('Mesh|'))) {
         const scanEnd = Math.min(buf.length, off + 1024);
         let end = -1;
         for (let i = off; i < scanEnd; i++) if (buf[i] === 0x7d) { end = i + 1; break; }
