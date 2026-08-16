@@ -364,13 +364,19 @@
     let replayBuffer = null;
     let fileName = '';
     let parsedData = null;
-    let jsonBlobUrl = null;
 
     function switchTab(tabId) {
       document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
       document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
       event.target.classList.add('active');
       document.getElementById('tab-' + tabId).classList.add('active');
+    }
+
+    function togglePlayerDetails(index) {
+      const row = document.getElementById(`details-${index}`);
+      if (row) {
+        row.classList.toggle('active');
+      }
     }
 
     function readUVarint(buf, off) {
@@ -448,80 +454,70 @@
 
     const encoder = new TextEncoder();
 
-    async function streamGenerateJsonBlob(buf, parsedEntities) {
-      const statusEl = document.getElementById('jsonStatus');
-      statusEl.innerText = "Initializing Stream...";
+    function cleanValue(val) {
+      if (!val || val === 'none' || val === 'hat_none' || val === 'back_none' || val === 'profileEffect_none') return 'None';
+      return val;
+    }
 
-      const stream = new ReadableStream({
-        async start(controller) {
-          controller.enqueue(encoder.encode('{\n  "metadata": {\n'));
-          controller.enqueue(encoder.encode(`    "fileName": ${JSON.stringify(fileName)},\n`));
-          controller.enqueue(encoder.encode(`    "fileSizeHex": "0x${buf.length.toString(16)}",\n`));
-          controller.enqueue(encoder.encode(`    "fileSizeBytes": ${buf.length}\n`));
-          controller.enqueue(encoder.encode('  },\n  "entitiesAndWorld": '));
-          controller.enqueue(encoder.encode(JSON.stringify(parsedEntities, null, 2)));
-          controller.enqueue(encoder.encode(',\n  "rawStreamRecords": [\n'));
-
-          let off = 0;
-          let first = true;
-          let lastYield = performance.now();
-
-          while (off < buf.length) {
-            if (performance.now() - lastYield > 16) {
-              statusEl.innerText = `Processing JSON Stream... ${(off / buf.length * 100).toFixed(1)}%`;
-              await new Promise(resolve => requestAnimationFrame(resolve));
-              lastYield = performance.now();
-            }
-
-            try {
-              const recStart = off;
-              const unionIdx = readAvroLong(buf, off);
-              off = unionIdx.next;
-
-              if (unionIdx.value === 3) {
-                const rx = readAvroLong(buf, off); off = rx.next;
-                const ry = readAvroLong(buf, off); off = ry.next;
-                const rz = readAvroLong(buf, off); off = rz.next;
-                const rf = readAvroLong(buf, off); off = rf.next;
-                const rl = readAvroLong(buf, off); off = rl.next;
-
-                const rleOffset = off;
-                off += rl.value;
-
-                const headerStr = `${first ? '' : ',\n'}    {"offset":${recStart},"type":"TerrainChunk","coordinates":{"x":${rx.value},"y":${ry.value},"z":${rz.value}},"flags":${rf.value},"rleByteLength":${rl.value},"rawRleBytes":[` ;
-                controller.enqueue(encoder.encode(headerStr));
-                controller.enqueue(buf.subarray(rleOffset, rleOffset + rl.value));
-                controller.enqueue(encoder.encode(']}'));
-                first = false;
-              } else {
-                try {
-                  const strRes = readAvroString(buf, recStart);
-                  if (strRes.value && strRes.value.length > 0 && /^[\x20-\x7E]+$/.test(strRes.value)) {
-                    const itemStr = `${first ? '' : ',\n'}    {"offset":${recStart},"type":"StringEntry","value":${JSON.stringify(strRes.value)}}`;
-                    controller.enqueue(encoder.encode(itemStr));
-                    first = false;
-                    off = strRes.next;
-                  }
-                } catch {}
-              }
-            } catch {
-              off++;
-            }
+    function parseReadableStrings(buf, startPos, maxEnd) {
+      const strings = [];
+      let p = startPos;
+      while (p < maxEnd) {
+        try {
+          const str = readAvroString(buf, p);
+          if (str.value && str.value.length > 0 && /^[\x20-\x7E]+$/.test(str.value)) {
+            strings.push(str.value);
+            p = str.next;
+          } else {
+            p++;
           }
-
-          controller.enqueue(encoder.encode('\n  ]\n}'));
-          controller.close();
+        } catch {
+          p++;
         }
-      });
+      }
 
-      const response = new Response(stream);
-      const blob = await response.blob();
+      const details = {
+        helmet: 'None',
+        chestplate: 'None',
+        gauntlets: 'None',
+        leggings: 'None',
+        boots: 'None',
+        nameBgColor: 'None',
+        subtitle: 'None',
+        skin: 'None',
+        cape: 'None',
+        nameColor: 'None',
+        profileEffect: 'None',
+        emotes: 'None'
+      };
 
-      if (jsonBlobUrl) URL.revokeObjectURL(jsonBlobUrl);
-      jsonBlobUrl = URL.createObjectURL(blob);
+      for (let i = 0; i < strings.length; i++) {
+        const s = strings[i];
 
-      statusEl.innerText = "JSON Ready";
-      document.getElementById('btnDownloadJson').disabled = false;
+        if (s === 'Helmet' && strings[i+1]) details.helmet = strings[i+1] + (strings[i+2] && strings[i+2].startsWith('Tier') ? ' ' + strings[i+2] : '');
+        if (s.includes('Chestplate')) details.chestplate = s.split('$')[1] || s;
+        if (s.includes('Gauntlets')) details.gauntlets = s.replace(/\\"/g, '').replace('Gauntlets', '').trim() || s;
+        if (s.includes('Leggings')) details.leggings = s.replace('Leggings', '').trim() || s;
+        if (s === 'Boots' && strings[i+1]) details.boots = strings[i+1];
+
+        if (s.startsWith('{') && s.includes('backgroundColor')) {
+          try {
+            const json = JSON.parse(s);
+            details.nameBgColor = cleanValue(json.backgroundColor);
+            if (json.subtitle && Array.isArray(json.subtitle)) {
+              details.subtitle = json.subtitle.map(sub => sub.str).join('').trim() || 'None';
+            }
+          } catch {}
+        }
+
+        if (s.startsWith('skin')) details.skin = cleanValue(s);
+        if (s.startsWith('cape')) details.cape = cleanValue(s);
+        if (s.startsWith('nameColour')) details.nameColor = cleanValue(s.replace('nameColour', '').trim());
+        if (s.includes('profileEffect')) details.profileEffect = cleanValue(s.split('$')[1] || s);
+        if (s.startsWith('emote>')) details.emotes = cleanValue(s.replace('emote>', '').split(',').join(', '));
+      }
+
+      return details;
     }
 
     function parseReplay(buf) {
@@ -559,6 +555,8 @@
           const heldTier = parseStringAfterTag(buf, q, 0x16, maxEnd); if (heldTier) q = heldTier.next;
           const pose = parseStringAfterTag(buf, q, 0x18, maxEnd); if (pose) q = pose.next;
 
+          const extraDetails = parseReadableStrings(buf, q, maxEnd);
+
           playerOccurrences.push({
             entityId: entityIdBefore(buf, recordStart),
             name: name.value,
@@ -568,7 +566,8 @@
             currentMovementSpeed: speed ? round(speed.value, 6) : null,
             heldItem: held?.value || null,
             heldItemTier: heldTier?.value || null,
-            pose: pose?.value || null
+            pose: pose?.value || null,
+            details: extraDetails
           });
         }
       }
@@ -813,14 +812,6 @@
       btn.innerText = 'Download ZIP';
     }
 
-    function downloadJsonFile() {
-      if (!jsonBlobUrl) return;
-      const a = document.createElement('a');
-      a.href = jsonBlobUrl;
-      a.download = fileName.replace(/\.bloxdreplay$/i, '') + '_decoded.json';
-      a.click();
-    }
-
     const fileInput = document.getElementById('fileInput');
     fileInput.addEventListener('change', (e) => {
       const file = e.target.files[0];
@@ -838,8 +829,6 @@
         parsedData = parseReplay(replayBuffer);
 
         renderUI();
-        await streamGenerateJsonBlob(replayBuffer, parsedData);
-
         document.getElementById('dropZoneText').innerText = `Loaded: ${fileName}`;
       };
       reader.readAsArrayBuffer(file);
@@ -852,9 +841,51 @@
       document.getElementById('terrainInfo').innerHTML = `<p style="color:var(--accent)">Found <b>${chunks.length}</b> unique 32x32x32 terrain chunks.</p>`;
 
       document.getElementById('playerCount').innerText = parsedData.players.length;
-      document.getElementById('playersTable').querySelector('tbody').innerHTML = parsedData.players.map(p => 
-        `<tr><td><b>${p.name}</b></td><td>[${p.position.join(', ')}]</td><td>${p.yawDegrees}° / ${p.pitchDegrees ?? 0}°</td><td>${p.currentMovementSpeed ?? '-'}</td><td>${p.heldItem ?? '-'}</td><td>${p.pose ?? '-'}</td></tr>`
-      ).join('');
+      
+      const tbody = document.getElementById('playersTable').querySelector('tbody');
+      tbody.innerHTML = '';
+
+      parsedData.players.forEach((p, idx) => {
+        const d = p.details;
+        const mainRow = document.createElement('tr');
+        mainRow.className = 'player-row';
+        mainRow.onclick = () => togglePlayerDetails(idx);
+        mainRow.innerHTML = `
+          <td><b>${p.name}</b></td>
+          <td>[${p.position.join(', ')}]</td>
+          <td>${p.yawDegrees}° / ${p.pitchDegrees ?? 0}°</td>
+          <td>${p.currentMovementSpeed ?? '-'}</td>
+          <td>${p.heldItem ?? '-'}</td>
+          <td>${p.pose ?? '-'}</td>
+        `;
+
+        const detailsRow = document.createElement('tr');
+        detailsRow.id = `details-${idx}`;
+        detailsRow.className = 'details-row';
+        detailsRow.innerHTML = `
+          <td colspan="6">
+            <div class="details-container">
+              <table class="details-table">
+                <tr><td class="details-label">Helmet</td><td>${d.helmet}</td></tr>
+                <tr><td class="details-label">Chestplate</td><td>${d.chestplate}</td></tr>
+                <tr><td class="details-label">Gauntlets</td><td>${d.gauntlets}</td></tr>
+                <tr><td class="details-label">Leggings</td><td>${d.leggings}</td></tr>
+                <tr><td class="details-label">Boots</td><td>${d.boots}</td></tr>
+                <tr><td class="details-label">Name Tag Background</td><td>${d.nameBgColor}</td></tr>
+                <tr><td class="details-label">Name Tag Subtitle</td><td>${d.subtitle}</td></tr>
+                <tr><td class="details-label">Skin</td><td>${d.skin}</td></tr>
+                <tr><td class="details-label">Cape</td><td>${d.cape}</td></tr>
+                <tr><td class="details-label">Name Color</td><td>${d.nameColor}</td></tr>
+                <tr><td class="details-label">Profile Effect</td><td>${d.profileEffect}</td></tr>
+                <tr><td class="details-label">Emotes</td><td>${d.emotes}</td></tr>
+              </table>
+            </div>
+          </td>
+        `;
+
+        tbody.appendChild(mainRow);
+        tbody.appendChild(detailsRow);
+      });
 
       document.getElementById('meshCount').innerText = parsedData.meshRecords.length;
       document.getElementById('meshTable').querySelector('tbody').innerHTML = parsedData.meshRecords.map(m =>
