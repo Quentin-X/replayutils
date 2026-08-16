@@ -4,6 +4,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <link rel="icon" type="image/x-icon" href="favicon.ico">
     <title>Bloxd ReplayUtils</title>
     <style>
@@ -220,8 +221,10 @@
 
 <body>
 
-    <header>
+    <header style="text-align: center">
         <h1>Bloxd Replay Inspector</h1>
+        <p>By RealSlothuLT3 :D</p>
+        <small>(Th3SunDragon did like 99% of the stuff)</small>
     </header>
 
     <nav class="nav-tabs">
@@ -655,7 +658,6 @@
             const minY = Math.min(...group.map(c => c.y)), maxY = Math.max(...group.map(c => c.y));
             const minZ = Math.min(...group.map(c => c.z)), maxZ = Math.max(...group.map(c => c.z));
 
-            // Calculate placement offset relative to the origin chunk (32 blocks per chunk)
             const offsetX = (minX - globalMinX) * 32;
             const offsetY = (minY - globalMinY) * 32;
             const offsetZ = (minZ - globalMinZ) * 32;
@@ -674,7 +676,6 @@
             let baseName = fileName.replace(/\.bloxdreplay$/i, '');
             let schemName = baseName;
 
-            // Append coordinates offset [X, Y, Z] directly into the exported file name
             if (totalParts > 1) {
                 schemName += `_part${partIndex + 1}_offset[X${offsetX}_Y${offsetY}_Z${offsetZ}]`;
             }
@@ -700,9 +701,13 @@
             return { binary: concatBuffers(parts), name: schemName };
         }
 
-        function exportSchematic() {
+        async function exportSchematic() {
             const chunks = findTerrainChunks();
             if (!chunks.length) return alert('No terrain chunks found.');
+
+            const btn = document.getElementById('btnDownloadSchem');
+            btn.disabled = true;
+            btn.innerText = 'Creating ZIP...';
 
             const globalMinX = Math.min(...chunks.map(c => c.x));
             const globalMinY = Math.min(...chunks.map(c => c.y));
@@ -712,15 +717,23 @@
             const maxChunks = (isNaN(limitInput) || limitInput < 1) ? 50 : limitInput;
 
             const groups = splitByXColumns(chunks, maxChunks);
+            const zip = new JSZip();
 
             groups.forEach((group, index) => {
                 const { binary, name } = buildPartSchematic(group, index, groups.length, globalMinX, globalMinY, globalMinZ);
-                const blob = new Blob([binary], { type: 'application/octet-stream' });
-                const a = document.createElement('a');
-                a.href = URL.createObjectURL(blob);
-                a.download = `${name}.bloxdschem`;
-                a.click();
+                zip.file(`${name}.bloxdschem`, binary);
             });
+
+            const zipName = fileName.replace(/\.bloxdreplay$/i, '') + '_schematics.zip';
+            const blob = await zip.generateAsync({ type: 'blob' });
+
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = zipName;
+            a.click();
+
+            btn.disabled = false;
+            btn.innerText = 'Download ZIP';
         }
 
         const fileInput = document.getElementById('fileInput');
