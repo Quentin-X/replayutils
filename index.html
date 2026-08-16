@@ -450,68 +450,74 @@
 
     async function streamGenerateJsonBlob(buf, parsedEntities) {
       const statusEl = document.getElementById('jsonStatus');
-      statusEl.innerText = "Generating JSON Blob...";
+      statusEl.innerText = "Initializing Stream...";
 
-      const parts = [];
-      parts.push(encoder.encode('{\n  "metadata": {\n'));
-      parts.push(encoder.encode(`    "fileName": ${JSON.stringify(fileName)},\n`));
-      parts.push(encoder.encode(`    "fileSizeHex": "0x${buf.length.toString(16)}",\n`));
-      parts.push(encoder.encode(`    "fileSizeBytes": ${buf.length}\n`));
-      parts.push(encoder.encode('  },\n  "entitiesAndWorld": '));
-      parts.push(encoder.encode(JSON.stringify(parsedEntities, null, 2)));
-      parts.push(encoder.encode(',\n  "rawStreamRecords": [\n'));
+      const stream = new ReadableStream({
+        async start(controller) {
+          controller.enqueue(encoder.encode('{\n  "metadata": {\n'));
+          controller.enqueue(encoder.encode(`    "fileName": ${JSON.stringify(fileName)},\n`));
+          controller.enqueue(encoder.encode(`    "fileSizeHex": "0x${buf.length.toString(16)}",\n`));
+          controller.enqueue(encoder.encode(`    "fileSizeBytes": ${buf.length}\n`));
+          controller.enqueue(encoder.encode('  },\n  "entitiesAndWorld": '));
+          controller.enqueue(encoder.encode(JSON.stringify(parsedEntities, null, 2)));
+          controller.enqueue(encoder.encode(',\n  "rawStreamRecords": [\n'));
 
-      let off = 0;
-      let first = true;
-      let lastYield = performance.now();
+          let off = 0;
+          let first = true;
+          let lastYield = performance.now();
 
-      while (off < buf.length) {
-        if (performance.now() - lastYield > 16) {
-          statusEl.innerText = `Processing JSON Stream... ${(off / buf.length * 100).toFixed(1)}%`;
-          await new Promise(resolve => requestAnimationFrame(resolve));
-          lastYield = performance.now();
-        }
+          while (off < buf.length) {
+            if (performance.now() - lastYield > 16) {
+              statusEl.innerText = `Processing JSON Stream... ${(off / buf.length * 100).toFixed(1)}%`;
+              await new Promise(resolve => requestAnimationFrame(resolve));
+              lastYield = performance.now();
+            }
 
-        try {
-          const recStart = off;
-          const unionIdx = readAvroLong(buf, off);
-          off = unionIdx.next;
-
-          if (unionIdx.value === 3) {
-            const rx = readAvroLong(buf, off); off = rx.next;
-            const ry = readAvroLong(buf, off); off = ry.next;
-            const rz = readAvroLong(buf, off); off = rz.next;
-            const rf = readAvroLong(buf, off); off = rf.next;
-            const rl = readAvroLong(buf, off); off = rl.next;
-            
-            const rleOffset = off;
-            off += rl.value;
-
-            const headerStr = `${first ? '' : ',\n'}    {"offset":${recStart},"type":"TerrainChunk","coordinates":{"x":${rx.value},"y":${ry.value},"z":${rz.value}},"flags":${rf.value},"rleByteLength":${rl.value},"rawRleBytes":[` ;
-            parts.push(encoder.encode(headerStr));
-            parts.push(buf.subarray(rleOffset, rleOffset + rl.value));
-            parts.push(encoder.encode(']}'));
-            first = false;
-          } else {
             try {
-              const strRes = readAvroString(buf, recStart);
-              if (strRes.value && strRes.value.length > 0 && /^[\x20-\x7E]+$/.test(strRes.value)) {
-                const itemStr = `${first ? '' : ',\n'}    {"offset":${recStart},"type":"StringEntry","value":${JSON.stringify(strRes.value)}}`;
-                parts.push(encoder.encode(itemStr));
-                first = false;
-                off = strRes.next;
-              }
-            } catch {}
-          }
-        } catch {
-          off++;
-        }
-      }
+              const recStart = off;
+              const unionIdx = readAvroLong(buf, off);
+              off = unionIdx.next;
 
-      parts.push(encoder.encode('\n  ]\n}'));
+              if (unionIdx.value === 3) {
+                const rx = readAvroLong(buf, off); off = rx.next;
+                const ry = readAvroLong(buf, off); off = ry.next;
+                const rz = readAvroLong(buf, off); off = rz.next;
+                const rf = readAvroLong(buf, off); off = rf.next;
+                const rl = readAvroLong(buf, off); off = rl.next;
+
+                const rleOffset = off;
+                off += rl.value;
+
+                const headerStr = `${first ? '' : ',\n'}    {"offset":${recStart},"type":"TerrainChunk","coordinates":{"x":${rx.value},"y":${ry.value},"z":${rz.value}},"flags":${rf.value},"rleByteLength":${rl.value},"rawRleBytes":[` ;
+                controller.enqueue(encoder.encode(headerStr));
+                controller.enqueue(buf.subarray(rleOffset, rleOffset + rl.value));
+                controller.enqueue(encoder.encode(']}'));
+                first = false;
+              } else {
+                try {
+                  const strRes = readAvroString(buf, recStart);
+                  if (strRes.value && strRes.value.length > 0 && /^[\x20-\x7E]+$/.test(strRes.value)) {
+                    const itemStr = `${first ? '' : ',\n'}    {"offset":${recStart},"type":"StringEntry","value":${JSON.stringify(strRes.value)}}`;
+                    controller.enqueue(encoder.encode(itemStr));
+                    first = false;
+                    off = strRes.next;
+                  }
+                } catch {}
+              }
+            } catch {
+              off++;
+            }
+          }
+
+          controller.enqueue(encoder.encode('\n  ]\n}'));
+          controller.close();
+        }
+      });
+
+      const response = new Response(stream);
+      const blob = await response.blob();
 
       if (jsonBlobUrl) URL.revokeObjectURL(jsonBlobUrl);
-      const blob = new Blob(parts, { type: 'application/json' });
       jsonBlobUrl = URL.createObjectURL(blob);
 
       statusEl.innerText = "JSON Ready";
@@ -746,7 +752,7 @@
 
       let baseName = fileName.replace(/\.bloxdreplay$/i, '');
       let schemName = baseName;
-      
+
       if (totalParts > 1) {
         schemName += `_part${partIndex + 1}_offset[X${offsetX}_Y${offsetY}_Z${offsetZ}]`;
       }
@@ -830,7 +836,7 @@
       reader.onload = async (evt) => {
         replayBuffer = new Uint8Array(evt.target.result);
         parsedData = parseReplay(replayBuffer);
-        
+
         renderUI();
         await streamGenerateJsonBlob(replayBuffer, parsedData);
 
