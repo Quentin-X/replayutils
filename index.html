@@ -701,7 +701,7 @@
 
         async function exportSchematic() {
             const chunks = findTerrainChunks();
-            if (!chunks.length) return alert('No terrain chunks found.');
+            if (!chunks.length) return alert('No recorded chunks found.');
 
             const btn = document.getElementById('btnDownloadSchem');
             btn.disabled = true;
@@ -757,7 +757,7 @@
         function renderUI() {
             document.getElementById('btnDownloadSchem').disabled = false;
             const chunks = findTerrainChunks();
-            document.getElementById('terrainInfo').innerHTML = `<p style="color:var(--accent)">Found <b>${chunks.length}</b> unique 32x32x32 terrain chunks.</p>`;
+            document.getElementById('terrainInfo').innerHTML = `<p style="color:var(--accent)">Found <b>${chunks.length}</b> recorded chunks.</p>`;
 
             document.getElementById('playerCount').innerText = parsedData.players.length;
             document.getElementById('playersTable').querySelector('tbody').innerHTML = parsedData.players.map(p =>
