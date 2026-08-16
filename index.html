@@ -351,15 +351,15 @@
         </div>
 
         <div id="tab-json" class="tab-content">
-            <div class="card">
-                <h2>Parsed Result Output</h2>
-                <p style="color: var(--text-muted); margin-bottom: 1rem;">Get the original decoded data.</p>
-                <pre id="jsonOutput">Load a .bloxdreplay file to display structure...</pre>
-            </div>
-        </div>
-    </main>
+      <div class="card">
+        <h2>Complete Raw Decoded Replay Data</h2>
+        <p style="color: var(--text-muted); margin-bottom: 1rem;">Export the full parsed JSON data file directly to avoid browser freezing caused by DOM text rendering.</p>
+        <button class="btn" id="btnDownloadJson" disabled onclick="downloadJsonFile()">Download Full JSON</button>
+      </div>
+    </div>
+  </main>
 
-    <script>
+  <script>
     let replayBuffer = null;
     let fileName = '';
     let parsedData = null;
@@ -445,17 +445,23 @@
 
     const MOB_TYPES = ['67','Pig','Cow','Sheep','Horse','Cave Golem','Draugr Zombie','Draugr Skeleton','Frost Golem','Frost Zombie','Frost Skeleton','Draugr Knight','Wolf','Bear','Deer','Stag','Gold Watermelon Stag','Gorilla','Wildcat','Magma Golem','Draugr Huntress','Spirit Golem','Spirit Wolf','Spirit Bear','Spirit Stag','Spirit Gorilla','Draugr Warper','Frost Wraith','Draugr Reaver','NPC','Bobino Musculino','Capitano Explovissimo'];
 
-    function parseFullRawStream(buf) {
+    async function parseFullRawStreamAsync(buf) {
       const records = [];
       let off = 0;
+      let lastYield = Date.now();
       
       while (off < buf.length) {
+        if (Date.now() - lastYield > 20) {
+          await new Promise(r => setTimeout(r, 0));
+          lastYield = Date.now();
+        }
+
         try {
           const recStart = off;
           const unionIdx = readAvroLong(buf, off);
           off = unionIdx.next;
 
-          if (unionIdx.value === 3) { // Terrain Chunk Packet
+          if (unionIdx.value === 3) {
             const rx = readAvroLong(buf, off); off = rx.next;
             const ry = readAvroLong(buf, off); off = ry.next;
             const rz = readAvroLong(buf, off); off = rz.next;
@@ -476,7 +482,6 @@
             continue;
           }
 
-          // Try extracting Avro String if present at offset
           try {
             const strRes = readAvroString(buf, recStart);
             if (strRes.value && strRes.value.length > 0 && /^[\x20-\x7E]+$/.test(strRes.value)) {
@@ -751,7 +756,7 @@
 
     async function exportSchematic() {
       const chunks = findTerrainChunks();
-      if (!chunks.length) return alert('No recorded chunks found.');
+      if (!chunks.length) return alert('No terrain chunks found.');
 
       const btn = document.getElementById('btnDownloadSchem');
       btn.disabled = true;
@@ -784,6 +789,28 @@
       btn.innerText = 'Download ZIP';
     }
 
+    function downloadJsonFile() {
+      const fullDecodedData = {
+        metadata: {
+          fileName: fileName,
+          fileSizeHex: `0x${replayBuffer.length.toString(16)}`,
+          fileSizeBytes: replayBuffer.length,
+          totalDecodedRecords: rawDecodedRecords.length
+        },
+        entitiesAndWorld: parsedData,
+        rawStreamRecords: rawDecodedRecords
+      };
+
+      const jsonStr = JSON.stringify(fullDecodedData, null, 2);
+      const blob = new Blob([jsonStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName.replace(/\.bloxdreplay$/i, '') + '_decoded.json';
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
     const fileInput = document.getElementById('fileInput');
     fileInput.addEventListener('change', (e) => {
       const file = e.target.files[0];
@@ -792,14 +819,16 @@
 
     function handleFile(file) {
       fileName = file.name;
-      document.getElementById('dropZoneText').innerText = `Loaded: ${fileName}`;
+      document.getElementById('dropZoneText').innerText = `Processing: ${fileName}...`;
       document.getElementById('dropZoneSubtext').innerText = `${(file.size / 1024 / 1024).toFixed(2)} MB`;
 
       const reader = new FileReader();
-      reader.onload = (evt) => {
+      reader.onload = async (evt) => {
         replayBuffer = new Uint8Array(evt.target.result);
         parsedData = parseReplay(replayBuffer);
-        rawDecodedRecords = parseFullRawStream(replayBuffer);
+        rawDecodedRecords = await parseFullRawStreamAsync(replayBuffer);
+        
+        document.getElementById('dropZoneText').innerText = `Loaded: ${fileName}`;
         renderUI();
       };
       reader.readAsArrayBuffer(file);
@@ -807,6 +836,8 @@
 
     function renderUI() {
       document.getElementById('btnDownloadSchem').disabled = false;
+      document.getElementById('btnDownloadJson').disabled = false;
+
       const chunks = findTerrainChunks();
       document.getElementById('terrainInfo').innerHTML = `<p style="color:var(--accent)">Found <b>${chunks.length}</b> recorded chunks.</p>`;
 
@@ -834,19 +865,6 @@
       document.getElementById('mobsTable').querySelector('tbody').innerHTML = parsedData.mobs.map(m =>
         `<tr><td><b>${m.type}</b></td><td>${m.variation ?? '-'}</td><td>[${m.position.join(', ')}]</td><td>${m.yawDegrees}°</td><td>${m.currentMovementSpeed ?? '-'}</td><td>${m.scale ?? '-'}</td></tr>`
       ).join('');
-
-      const fullDecodedData = {
-        metadata: {
-          fileName: fileName,
-          fileSizeHex: `0x${replayBuffer.length.toString(16)}`,
-          fileSizeBytes: replayBuffer.length,
-          totalDecodedRecords: rawDecodedRecords.length
-        },
-        entitiesAndWorld: parsedData,
-        rawStreamRecords: rawDecodedRecords
-      };
-
-      document.getElementById('jsonOutput').textContent = JSON.stringify(fullDecodedData, null, 2);
     }
   </script>
 </body>
