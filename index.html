@@ -484,21 +484,35 @@
         boots: 'None',
         nameBgColor: 'None',
         subtitle: 'None',
-        skin: 'None',
+        skinParts: [],
         cape: 'None',
         nameColor: 'None',
         profileEffect: 'None',
         emotes: 'None'
       };
 
+      const skinKeys = ['hat', 'head', 'body', 'legs', 'shoes', 'eyebrows', 'eyes', 'skin', 'back'];
+
       for (let i = 0; i < strings.length; i++) {
         const s = strings[i];
 
-        if (s === 'Helmet' && strings[i+1]) details.helmet = strings[i+1] + (strings[i+2] && strings[i+2].startsWith('Tier') ? ' ' + strings[i+2] : '');
-        if (s.includes('Chestplate')) details.chestplate = s.split('$')[1] || s;
-        if (s.includes('Gauntlets')) details.gauntlets = s.replace(/\\"/g, '').replace('Gauntlets', '').trim() || s;
-        if (s.includes('Leggings')) details.leggings = s.replace('Leggings', '').trim() || s;
-        if (s === 'Boots' && strings[i+1]) details.boots = strings[i+1];
+        if (s === 'Helmet' && strings[i+1]) {
+          details.helmet = strings[i+1] + (strings[i+2] && strings[i+2].startsWith('Tier') ? ' ' + strings[i+2] : '');
+        }
+        if (s.includes('Chestplate')) {
+          details.chestplate = s.split('$')[1] || s;
+        }
+        if (s.includes('Gauntlets')) {
+          let name = s.replace(/\\"/g, '').replace('Gauntlets', '').trim();
+          details.gauntlets = name ? `${name} Gauntlets` : 'Gauntlets';
+        }
+        if (s.includes('Leggings')) {
+          let name = s.replace('Leggings', '').trim();
+          details.leggings = name ? `${name} Leggings` : 'Leggings';
+        }
+        if (s === 'Boots' && strings[i+1]) {
+          details.boots = strings[i+1];
+        }
 
         if (s.startsWith('{') && s.includes('backgroundColor')) {
           try {
@@ -510,12 +524,21 @@
           } catch {}
         }
 
-        if (s.startsWith('skin')) details.skin = cleanValue(s);
+        for (const key of skinKeys) {
+          if (s.startsWith(key + '_') || (s.startsWith('skin') && s !== 'skin')) {
+            details.skinParts.push(s);
+            break;
+          }
+        }
+
         if (s.startsWith('cape')) details.cape = cleanValue(s);
         if (s.startsWith('nameColour')) details.nameColor = cleanValue(s.replace('nameColour', '').trim());
         if (s.includes('profileEffect')) details.profileEffect = cleanValue(s.split('$')[1] || s);
         if (s.startsWith('emote>')) details.emotes = cleanValue(s.replace('emote>', '').split(',').join(', '));
       }
+
+      details.skin = details.skinParts.length > 0 ? details.skinParts.join(', ') : 'None';
+      delete details.skinParts;
 
       return details;
     }
@@ -873,7 +896,7 @@
                 <tr><td class="details-label">Boots</td><td>${d.boots}</td></tr>
                 <tr><td class="details-label">Name Tag Background</td><td>${d.nameBgColor}</td></tr>
                 <tr><td class="details-label">Name Tag Subtitle</td><td>${d.subtitle}</td></tr>
-                <tr><td class="details-label">Skin</td><td>${d.skin}</td></tr>
+                <tr><td class="details-label">Skin & Cosmetics</td><td>${d.skin}</td></tr>
                 <tr><td class="details-label">Cape</td><td>${d.cape}</td></tr>
                 <tr><td class="details-label">Name Color</td><td>${d.nameColor}</td></tr>
                 <tr><td class="details-label">Profile Effect</td><td>${d.profileEffect}</td></tr>
