@@ -350,11 +350,12 @@
             </div>
         </div>
 
-        <div id="tab-json" class="tab-content">
+    <div id="tab-json" class="tab-content">
       <div class="card">
         <h2>Complete Raw Decoded Replay Data</h2>
-        <p style="color: var(--text-muted); margin-bottom: 1rem;">Export the full parsed JSON data file directly to avoid browser freezing caused by DOM text rendering.</p>
+        <p style="color: var(--text-muted); margin-bottom: 1rem;">Export the full parsed JSON data file directly. Stream-built blob download eliminates tab freezing.</p>
         <button class="btn" id="btnDownloadJson" disabled onclick="downloadJsonFile()">Download Full JSON</button>
+        <span id="jsonStatus" style="margin-left: 1rem; color: var(--accent); font-size: 0.9rem;"></span>
       </div>
     </div>
   </main>
@@ -363,7 +364,7 @@
     let replayBuffer = null;
     let fileName = '';
     let parsedData = null;
-    let rawDecodedRecords = [];
+    let jsonBlobUrl = null;
 
     function switchTab(tabId) {
       document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -445,13 +446,27 @@
 
     const MOB_TYPES = ['67','Pig','Cow','Sheep','Horse','Cave Golem','Draugr Zombie','Draugr Skeleton','Frost Golem','Frost Zombie','Frost Skeleton','Draugr Knight','Wolf','Bear','Deer','Stag','Gold Watermelon Stag','Gorilla','Wildcat','Magma Golem','Draugr Huntress','Spirit Golem','Spirit Wolf','Spirit Bear','Spirit Stag','Spirit Gorilla','Draugr Warper','Frost Wraith','Draugr Reaver','NPC','Bobino Musculino','Capitano Explovissimo'];
 
-    async function parseFullRawStreamAsync(buf) {
-      const records = [];
+    async function streamGenerateJsonBlob(buf, parsedEntities) {
+      const statusEl = document.getElementById('jsonStatus');
+      statusEl.innerText = "Generating JSON Blob...";
+
+      const chunks = [];
+      chunks.push('{\n  "metadata": {\n');
+      chunks.push(`    "fileName": ${JSON.stringify(fileName)},\n`);
+      chunks.push(`    "fileSizeHex": "0x${buf.length.toString(16)}",\n`);
+      chunks.push(`    "fileSizeBytes": ${buf.length}\n`);
+      chunks.push('  },\n  "entitiesAndWorld": ');
+      chunks.push(JSON.stringify(parsedEntities, null, 2));
+      chunks.push(',\n  "rawStreamRecords": [\n');
+
       let off = 0;
+      let first = true;
+      let recordCount = 0;
       let lastYield = Date.now();
-      
+
       while (off < buf.length) {
-        if (Date.now() - lastYield > 20) {
+        if (Date.now() - lastYield > 12) {
+          statusEl.innerText = `Processing JSON Stream... ${(off / buf.length * 100).toFixed(0)}%`;
           await new Promise(r => setTimeout(r, 0));
           lastYield = Date.now();
         }
@@ -460,6 +475,8 @@
           const recStart = off;
           const unionIdx = readAvroLong(buf, off);
           off = unionIdx.next;
+
+          let itemObj = null;
 
           if (unionIdx.value === 3) {
             const rx = readAvroLong(buf, off); off = rx.next;
@@ -471,32 +488,45 @@
             const rawRLE = buf.subarray(off, off + rl.value);
             off += rl.value;
 
-            records.push({
+            itemObj = {
               offset: recStart,
               type: 'TerrainChunk',
               coordinates: { x: rx.value, y: ry.value, z: rz.value },
               flags: rf.value,
               rleByteLength: rl.value,
               rawRleBytes: Array.from(rawRLE)
-            });
-            continue;
+            };
+          } else {
+            try {
+              const strRes = readAvroString(buf, recStart);
+              if (strRes.value && strRes.value.length > 0 && /^[\x20-\x7E]+$/.test(strRes.value)) {
+                itemObj = { offset: recStart, type: 'StringEntry', value: strRes.value };
+                off = strRes.next;
+              }
+            } catch {}
           }
 
-          try {
-            const strRes = readAvroString(buf, recStart);
-            if (strRes.value && strRes.value.length > 0 && /^[\x20-\x7E]+$/.test(strRes.value)) {
-              records.push({ offset: recStart, type: 'StringEntry', value: strRes.value });
-              off = strRes.next;
-              continue;
-            }
-          } catch {}
-
-          off++;
+          if (itemObj) {
+            if (!first) chunks.push(',\n');
+            chunks.push('    ' + JSON.stringify(itemObj));
+            first = false;
+            recordCount++;
+          } else {
+            off++;
+          }
         } catch {
           off++;
         }
       }
-      return records;
+
+      chunks.push('\n  ]\n}');
+      
+      const blob = new Blob(chunks, { type: 'application/json' });
+      if (jsonBlobUrl) URL.revokeObjectURL(jsonBlobUrl);
+      jsonBlobUrl = URL.createObjectURL(blob);
+      
+      statusEl.innerText = "JSON Ready";
+      document.getElementById('btnDownloadJson').disabled = false;
     }
 
     function parseReplay(buf) {
@@ -790,25 +820,11 @@
     }
 
     function downloadJsonFile() {
-      const fullDecodedData = {
-        metadata: {
-          fileName: fileName,
-          fileSizeHex: `0x${replayBuffer.length.toString(16)}`,
-          fileSizeBytes: replayBuffer.length,
-          totalDecodedRecords: rawDecodedRecords.length
-        },
-        entitiesAndWorld: parsedData,
-        rawStreamRecords: rawDecodedRecords
-      };
-
-      const jsonStr = JSON.stringify(fullDecodedData, null, 2);
-      const blob = new Blob([jsonStr], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
+      if (!jsonBlobUrl) return;
       const a = document.createElement('a');
-      a.href = url;
+      a.href = jsonBlobUrl;
       a.download = fileName.replace(/\.bloxdreplay$/i, '') + '_decoded.json';
       a.click();
-      URL.revokeObjectURL(url);
     }
 
     const fileInput = document.getElementById('fileInput');
@@ -826,20 +842,20 @@
       reader.onload = async (evt) => {
         replayBuffer = new Uint8Array(evt.target.result);
         parsedData = parseReplay(replayBuffer);
-        rawDecodedRecords = await parseFullRawStreamAsync(replayBuffer);
         
-        document.getElementById('dropZoneText').innerText = `Loaded: ${fileName}`;
         renderUI();
+        await streamGenerateJsonBlob(replayBuffer, parsedData);
+
+        document.getElementById('dropZoneText').innerText = `Loaded: ${fileName}`;
       };
       reader.readAsArrayBuffer(file);
     }
 
     function renderUI() {
       document.getElementById('btnDownloadSchem').disabled = false;
-      document.getElementById('btnDownloadJson').disabled = false;
 
       const chunks = findTerrainChunks();
-      document.getElementById('terrainInfo').innerHTML = `<p style="color:var(--accent)">Found <b>${chunks.length}</b> recorded chunks.</p>`;
+      document.getElementById('terrainInfo').innerHTML = `<p style="color:var(--accent)">Found <b>${chunks.length}</b> unique 32x32x32 terrain chunks.</p>`;
 
       document.getElementById('playerCount').innerText = parsedData.players.length;
       document.getElementById('playersTable').querySelector('tbody').innerHTML = parsedData.players.map(p => 
