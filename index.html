@@ -1,0 +1,780 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Bloxd Replay Parser & Converter</title>
+    <style>
+        :root {
+            --bg-main: #0b132b;
+            --bg-card: #1c2541;
+            --bg-card-hover: #232e52;
+            --accent: #48cae4;
+            --accent-hover: #00b4d8;
+            --text-main: #edf2f4;
+            --text-muted: #8d99ae;
+            --border: #3a506b;
+            --font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-main);
+            color: var(--text-main);
+            font-family: var(--font-family);
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        header {
+            background-color: var(--bg-card);
+            border-bottom: 1px solid var(--border);
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        h1 {
+            font-size: 1.4rem;
+            color: var(--accent);
+            font-weight: 700;
+        }
+
+        .file-drop-zone {
+            position: relative;
+            border: 2px dashed var(--accent);
+            border-radius: 8px;
+            padding: 2.5rem 1.5rem;
+            text-align: center;
+            background-color: rgba(72, 202, 228, 0.05);
+            transition: all 0.2s ease-in-out;
+            cursor: pointer;
+            margin-bottom: 1.5rem;
+        }
+
+        .file-drop-zone:hover {
+            background-color: rgba(72, 202, 228, 0.12);
+            border-color: var(--accent-hover);
+        }
+
+        .file-drop-zone input[type="file"] {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            cursor: pointer;
+        }
+
+        .drop-zone-text {
+            color: var(--text-main);
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 0.4rem;
+        }
+
+        .drop-zone-subtext {
+            color: var(--text-muted);
+            font-size: 0.85rem;
+        }
+
+        .btn {
+            background-color: var(--accent);
+            color: var(--bg-main);
+            padding: 0.6rem 1.4rem;
+            border-radius: 6px;
+            font-weight: 600;
+            border: none;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .btn:hover {
+            background-color: var(--accent-hover);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .nav-tabs {
+            display: flex;
+            background-color: var(--bg-card);
+            border-bottom: 1px solid var(--border);
+            padding: 0 1rem;
+            gap: 0.5rem;
+            overflow-x: auto;
+        }
+
+        .tab-btn {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            padding: 0.8rem 1.2rem;
+            font-weight: 600;
+            cursor: pointer;
+            border-bottom: 3px solid transparent;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+
+        .tab-btn:hover {
+            color: var(--text-main);
+        }
+
+        .tab-btn.active {
+            color: var(--accent);
+            border-bottom-color: var(--accent);
+        }
+
+        main {
+            flex: 1;
+            padding: 1.5rem;
+            overflow-y: auto;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .card {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .card h2 {
+            margin-bottom: 1rem;
+            color: var(--accent);
+            font-size: 1.2rem;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 0.5rem;
+        }
+
+        th,
+        td {
+            text-align: left;
+            padding: 0.75rem;
+            border-bottom: 1px solid var(--border);
+            font-size: 0.9rem;
+        }
+
+        th {
+            background-color: rgba(0, 0, 0, 0.2);
+            color: var(--accent);
+        }
+
+        tr:hover {
+            background-color: var(--bg-card-hover);
+        }
+
+        pre {
+            background-color: rgba(0, 0, 0, 0.3);
+            padding: 1rem;
+            border-radius: 6px;
+            overflow-x: auto;
+            font-family: 'Courier New', Courier, monospace;
+            color: #a9def9;
+            font-size: 0.85rem;
+        }
+
+        .controls-group {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+            margin-top: 1rem;
+        }
+
+        input[type="number"] {
+            background: var(--bg-main);
+            border: 1px solid var(--border);
+            color: var(--text-main);
+            padding: 0.5rem;
+            border-radius: 4px;
+            width: 100px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <header>
+        <h1>Bloxd Replay Inspector</h1>
+    </header>
+
+    <nav class="nav-tabs">
+        <button class="tab-btn active" onclick="switchTab('terrain')">Terrain Download</button>
+        <button class="tab-btn" onclick="switchTab('players')">Players</button>
+        <button class="tab-btn" onclick="switchTab('mesh')">Mesh Entities</button>
+        <button class="tab-btn" onclick="switchTab('spawners')">Spawners</button>
+        <button class="tab-btn" onclick="switchTab('chests')">Chests</button>
+        <button class="tab-btn" onclick="switchTab('mobs')">Mobs</button>
+        <button class="tab-btn" onclick="switchTab('json')">Full JSON</button>
+    </nav>
+
+    <main>
+        <div class="file-drop-zone" id="dropZone">
+            <input type="file" id="fileInput" accept=".bloxdreplay" />
+            <div class="drop-zone-text" id="dropZoneText">Click or Drag & Drop .bloxdreplay File Here</div>
+            <div class="drop-zone-subtext" id="dropZoneSubtext">Supports .bloxdreplay format</div>
+        </div>
+
+        <div id="tab-terrain" class="tab-content active">
+            <div class="card">
+                <h2>Export Schematic (.bloxdschem)</h2>
+                <p style="color: var(--text-muted); margin-bottom: 1rem;">Use to get builds from recording. Multiple
+                    files will be downloaded. Allow multiple file downloads.</p>
+                <div class="controls-group">
+                    <label for="maxChunks">Max chunks per split (above 1 might not work):</label>
+                    <input type="number" id="maxChunks" value="1" min="1" />
+                    <button class="btn" id="btnDownloadSchem" disabled onclick="exportSchematic()">Download
+                        .bloxdschem</button>
+                </div>
+                <div id="terrainInfo" style="margin-top: 1.5rem;"></div>
+            </div>
+        </div>
+
+        <div id="tab-players" class="tab-content">
+            <div class="card">
+                <h2>Players (<span id="playerCount">0</span>)</h2>
+                <p style="color: var(--text-muted); margin-bottom: 1rem;">Get recorded players.</p>
+                <table id="playersTable">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Last Pos</th>
+                            <th>Yaw/Pitch</th>
+                            <th>Speed</th>
+                            <th>Held Item</th>
+                            <th>Pose</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="tab-mesh" class="tab-content">
+            <div class="card">
+                <h2>Mesh Records (<span id="meshCount">0</span>)</h2>
+                <p style="color: var(--text-muted); margin-bottom: 1rem;">Gets the positions of mesh entities.</p>
+                <table id="meshTable">
+                    <thead>
+                        <tr>
+                            <th>Mesh type</th>
+                            <th>Position</th>
+                            <th>Details</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="tab-spawners" class="tab-content">
+            <div class="card">
+                <h2>Spawners (<span id="spawnerCount">0</span>)</h2>
+                <p style="color: var(--text-muted); margin-bottom: 1rem;">Uses the rotating spawn orb mesh to get the
+                    positions of spawners.</p>
+                <table id="spawnersTable">
+                    <thead>
+                        <tr>
+                            <th>Type</th>
+                            <th>Block Position</th>
+                            <th>Exact Mesh Position</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="tab-chests" class="tab-content">
+            <div class="card">
+                <h2>Loot Chests (<span id="chestCount">0</span>)</h2>
+                <p style="color: var(--text-muted); margin-bottom: 1rem;">Uses the particle emitting mesh positions to
+                    get unopened loot Chests.</p>
+                <table id="chestsTable">
+                    <thead>
+                        <tr>
+                            <th>Block Position</th>
+                            <th>Mesh Position</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="tab-mobs" class="tab-content">
+            <div class="card">
+                <h2>Mobs (<span id="mobCount">0</span>)</h2>
+                <p style="color: var(--text-muted); margin-bottom: 1rem;">Gets recorded mobs. Some undecoded mobs might
+                    be shown as "67".</p>
+                <table id="mobsTable">
+                    <thead>
+                        <tr>
+                            <th>Type</th>
+                            <th>Variation</th>
+                            <th>Position</th>
+                            <th>Yaw</th>
+                            <th>Speed</th>
+                            <th>Scale</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="tab-json" class="tab-content">
+            <div class="card">
+                <h2>Parsed Result Output</h2>
+                <p style="color: var(--text-muted); margin-bottom: 1rem;">Get the original decoded data.</p>
+                <pre id="jsonOutput">Load a .bloxdreplay file to display structure...</pre>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        let replayBuffer = null;
+        let fileName = '';
+        let parsedData = null;
+
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            event.target.classList.add('active');
+            document.getElementById('tab-' + tabId).classList.add('active');
+        }
+
+        function readUVarint(buf, off) {
+            let n = 0n, shift = 0n, i = off;
+            while (i < buf.length) {
+                const b = BigInt(buf[i++]);
+                n |= (b & 0x7fn) << shift;
+                if ((b & 0x80n) === 0n) return { value: n, next: i };
+                shift += 7n;
+                if (shift > 63n) throw new Error('varint too large');
+            }
+            throw new Error('truncated varint');
+        }
+        function zigzagDecode(n) { return (n >> 1n) ^ (-(n & 1n)); }
+        function readAvroLong(buf, off) {
+            const r = readUVarint(buf, off);
+            return { value: Number(zigzagDecode(r.value)), next: r.next };
+        }
+        function readAvroString(buf, off) {
+            const r = readAvroLong(buf, off);
+            if (r.value < 0 || r.value > 1_000_000 || r.next + r.value > buf.length) throw new Error('bad string');
+            const strBytes = buf.subarray(r.next, r.next + r.value);
+            return { value: new TextDecoder().decode(strBytes), next: r.next + r.value };
+        }
+        function d64(buf, off) {
+            return new DataView(buf.buffer, buf.byteOffset, buf.byteLength).getFloat64(off, true);
+        }
+        function finite3(v) { return v.every(Number.isFinite) && v.every(x => Math.abs(x) < 1e9); }
+        function round(n, p = 6) { return Number.isFinite(n) ? +n.toFixed(p) : n; }
+        function floorPos(p) { return p.map(Math.floor); }
+        function deg(rad) { let d = rad * 180 / Math.PI; d %= 360; if (d < 0) d += 360; return round(d, 3); }
+
+        function findAll(buf, needle) {
+            const out = [];
+            for (let i = 0; i <= buf.length - needle.length; i++) {
+                let match = true;
+                for (let j = 0; j < needle.length; j++) {
+                    if (buf[i + j] !== needle[j]) { match = false; break; }
+                }
+                if (match) out.push(i);
+            }
+            return out;
+        }
+
+        function seekTag(buf, pos, expectedTag, wireType, maxEnd, maxSkip = 4) {
+            const lim = Math.min(maxEnd - 1, pos + maxSkip + 1);
+            for (let i = pos; i < lim; i++) if (buf[i] === expectedTag && buf[i + 1] === wireType) return i;
+            return -1;
+        }
+        function parseStringAfterTag(buf, pos, expectedTag, maxEnd) {
+            const i = seekTag(buf, pos, expectedTag, 0x06, maxEnd, 4); if (i < 0) return null;
+            try { const r = readAvroString(buf, i + 2); return { ...r, tagOffset: i }; } catch { return null; }
+        }
+        function parseBoolAfterTag(buf, pos, expectedTag, maxEnd) {
+            const i = seekTag(buf, pos, expectedTag, 0x02, maxEnd, 4); if (i < 0 || i + 3 > maxEnd) return null;
+            return { value: !!buf[i + 2], next: i + 3, tagOffset: i };
+        }
+        function parseDoubleAfterTag(buf, pos, expectedTag, maxEnd) {
+            const i = seekTag(buf, pos, expectedTag, 0x04, maxEnd, 4); if (i < 0 || i + 10 > maxEnd) return null;
+            return { value: d64(buf, i + 2), next: i + 10, tagOffset: i };
+        }
+        function parseVec3AfterTag(buf, pos, expectedTag, maxEnd) {
+            const i = seekTag(buf, pos, expectedTag, 0x08, maxEnd, 4); if (i < 0 || i + 27 > maxEnd || buf[i + 2] !== 0x06) return null;
+            const v = [d64(buf, i + 3), d64(buf, i + 11), d64(buf, i + 19)];
+            return finite3(v) ? { value: v, next: i + 27, tagOffset: i } : null;
+        }
+        function entityIdBefore(buf, recordStart) {
+            const lo = Math.max(0, recordStart - 24);
+            let s = '';
+            for (let i = lo; i < recordStart; i++) s += String.fromCharCode(buf[i]);
+            const m = s.match(/(-\d+)$/); return m ? m[1] : null;
+        }
+
+        const MOB_TYPES = ['67', 'Pig', 'Cow', 'Sheep', 'Horse', 'Cave Golem', 'Draugr Zombie', 'Draugr Skeleton', 'Frost Golem', 'Frost Zombie', 'Frost Skeleton', 'Draugr Knight', 'Wolf', 'Bear', 'Deer', 'Stag', 'Gold Watermelon Stag', 'Gorilla', 'Wildcat', 'Magma Golem', 'Draugr Huntress', 'Spirit Golem', 'Spirit Wolf', 'Spirit Bear', 'Spirit Stag', 'Spirit Gorilla', 'Draugr Warper', 'Frost Wraith', 'Draugr Reaver', 'NPC', 'Bobino Musculino', 'Capitano Explovissimo'];
+
+        function parseReplay(buf) {
+            const enc = new TextEncoder();
+            const entityTypeMarkers = findAll(buf, enc.encode('\x2a\x00\x06'));
+
+            function nextEntityBoundary(after) {
+                let lo = 0, hi = entityTypeMarkers.length;
+                while (lo < hi) { const m = (lo + hi) >> 1; if (entityTypeMarkers[m] <= after) lo = m + 1; else hi = m; }
+                return lo < entityTypeMarkers.length ? entityTypeMarkers[lo] : Math.min(buf.length, after + 8192);
+            }
+
+            const playerOccurrences = [];
+            const playerBytes = enc.encode('Player');
+            for (const typeOff of findAll(buf, playerBytes)) {
+                if (typeOff >= 4 && buf[typeOff - 4] === 0x2a && buf[typeOff - 3] === 0x00 && buf[typeOff - 2] === 0x06 && buf[typeOff - 1] === 0x0c) {
+                    const recordStart = typeOff - 4;
+                    const maxEnd = Math.min(nextEntityBoundary(typeOff), typeOff + 4096);
+                    let p = typeOff + 6;
+                    const nameTag = seekTag(buf, p, 0x02, 0x06, maxEnd, 16);
+                    if (nameTag < 0) continue;
+                    let name;
+                    try { name = readAvroString(buf, nameTag + 2); } catch { continue; }
+                    let q = name.next;
+                    const posField = parseVec3AfterTag(buf, q, 0x04, maxEnd); if (!posField) continue;
+                    q = posField.next;
+                    const rotField = parseVec3AfterTag(buf, q, 0x06, maxEnd); if (!rotField) continue;
+                    q = rotField.next;
+                    const scale = parseDoubleAfterTag(buf, q, 0x08, maxEnd); if (scale) q = scale.next;
+                    const speed = parseDoubleAfterTag(buf, q, 0x0a, maxEnd); if (speed) q = speed.next;
+                    const airborne = parseBoolAfterTag(buf, q, 0x0c, maxEnd); if (airborne) q = airborne.next;
+                    const crouch = parseBoolAfterTag(buf, q, 0x0e, maxEnd); if (crouch) q = crouch.next;
+                    const pitch = parseDoubleAfterTag(buf, q, 0x10, maxEnd); if (pitch) q = pitch.next;
+                    const unknownBool = parseBoolAfterTag(buf, q, 0x12, maxEnd); if (unknownBool) q = unknownBool.next;
+                    const held = parseStringAfterTag(buf, q, 0x14, maxEnd); if (held) q = held.next;
+                    const heldTier = parseStringAfterTag(buf, q, 0x16, maxEnd); if (heldTier) q = heldTier.next;
+                    const pose = parseStringAfterTag(buf, q, 0x18, maxEnd); if (pose) q = pose.next;
+
+                    playerOccurrences.push({
+                        entityId: entityIdBefore(buf, recordStart),
+                        name: name.value,
+                        position: posField.value.map(x => round(x, 4)),
+                        yawDegrees: deg(rotField.value[1]),
+                        pitchDegrees: pitch ? round(pitch.value * 180 / Math.PI, 3) : null,
+                        currentMovementSpeed: speed ? round(speed.value, 6) : null,
+                        heldItem: held?.value || null,
+                        heldItemTier: heldTier?.value || null,
+                        pose: pose?.value || null
+                    });
+                }
+            }
+
+            const playerMap = new Map();
+            for (const p of playerOccurrences) {
+                if (!playerMap.has(p.name)) playerMap.set(p.name, p);
+            }
+
+            const mobs = [];
+            for (const t of MOB_TYPES) {
+                for (const off of findAll(buf, enc.encode(t))) {
+                    const maxEnd = Math.min(nextEntityBoundary(off), off + 4096);
+                    let q = off + enc.encode(t).length;
+                    const posMarker = seekTag(buf, q, 0x04, 0x08, maxEnd, 32); if (posMarker < 0) continue;
+                    const pos = parseVec3AfterTag(buf, posMarker, 0x04, maxEnd); if (!pos) continue;
+                    q = pos.next;
+                    const rot = parseVec3AfterTag(buf, q, 0x06, maxEnd); if (!rot) continue;
+                    q = rot.next;
+                    const scale = parseDoubleAfterTag(buf, q, 0x08, maxEnd); if (scale) q = scale.next;
+                    const speed = parseDoubleAfterTag(buf, q, 0x0a, maxEnd); if (speed) q = speed.next;
+                    let variation = null;
+                    for (let i = q; i < Math.min(maxEnd, q + 1000) - 2; i++) {
+                        if (buf[i] === 0x2a && buf[i + 1] === 0x06) { try { variation = readAvroString(buf, i + 2).value; break; } catch { } }
+                    }
+                    if (scale?.value > 0 && scale?.value < 20) {
+                        mobs.push({ type: t, variation, position: pos.value.map(x => round(x, 4)), yawDegrees: deg(rot.value[1]), currentMovementSpeed: speed ? round(speed.value, 6) : null, scale: scale ? round(scale.value, 4) : null });
+                    }
+                }
+            }
+
+            const meshRecords = [];
+            const spawnerMap = new Map();
+            const chestMap = new Map();
+            for (const off of findAll(buf, enc.encode('Mesh|'))) {
+                const scanEnd = Math.min(buf.length, off + 1024);
+                let end = -1;
+                for (let i = off; i < scanEnd; i++) if (buf[i] === 0x7d) { end = i + 1; break; }
+                if (end < 0) continue;
+                const desc = new TextDecoder().decode(buf.subarray(off, end));
+                const posMarker = seekTag(buf, end, 0x04, 0x08, scanEnd, 64); if (posMarker < 0) continue;
+                const pos = parseVec3AfterTag(buf, posMarker, 0x04, scanEnd); if (!pos) continue;
+
+                let kind = 'Mesh', opts = null;
+                const a = desc.indexOf('|'), b = desc.indexOf('|', a + 1);
+                if (a >= 0 && b >= 0) { kind = desc.slice(a + 1, b); try { opts = JSON.parse(desc.slice(b + 1)); } catch { } }
+                const item = { kind, opts, descriptor: desc, position: pos.value.map(x => round(x, 4)) };
+                meshRecords.push(item);
+
+                const bn = opts?.blockName;
+                if (kind === 'BloxdBlock' && typeof bn === 'string' && bn.endsWith('Spawn Orb')) {
+                    const p = floorPos(item.position), k = p.join(',');
+                    if (!spawnerMap.has(k)) spawnerMap.set(k, { type: bn.replace(/ Spawn Orb$/, ''), position: p, meshPosition: item.position });
+                }
+                if (kind === 'Box' && opts && opts.width === 0.99 && opts.height === 0.99 && opts.depth === 0.99 && JSON.stringify(opts.diffuseColor) === '[224,225,255]') {
+                    const p = floorPos(item.position), k = p.join(',');
+                    if (!chestMap.has(k)) chestMap.set(k, { position: p, meshPosition: item.position });
+                }
+            }
+
+            return {
+                source: fileName,
+                players: [...playerMap.values()],
+                spawners: [...spawnerMap.values()],
+                chests: [...chestMap.values()],
+                mobs,
+                meshRecords
+            };
+        }
+
+        function tryParseReplayChunkAt(off) {
+            try {
+                let r = readAvroLong(replayBuffer, off);
+                if (r.value !== 3) return null;
+                let q = r.next;
+                const rx = readAvroLong(replayBuffer, q); q = rx.next;
+                const ry = readAvroLong(replayBuffer, q); q = ry.next;
+                const rz = readAvroLong(replayBuffer, q); q = rz.next;
+                const rf = readAvroLong(replayBuffer, q); q = rf.next;
+                if (rf.value !== 0) return null;
+                const rl = readAvroLong(replayBuffer, q); q = rl.next;
+                const len = rl.value;
+                if (len < 4 || len > 20000 || q + len > replayBuffer.length) return null;
+
+                const blobStart = q, blobEnd = q + len;
+                let bq = blobStart, total = 0, runs = 0;
+                while (bq < blobEnd) {
+                    const rr = readUVarint(replayBuffer, bq); const run = Number(rr.value); bq = rr.next;
+                    const rb = readUVarint(replayBuffer, bq); const blockId = Number(rb.value); bq = rb.next;
+                    if (run <= 0 || blockId < 0 || total + run > 32768) return null;
+                    total += run; runs++;
+                }
+                if (bq !== blobEnd || total !== 32768) return null;
+                return { x: rx.value, y: ry.value, z: rz.value, blocks: replayBuffer.subarray(blobStart, blobEnd), end: blobEnd };
+            } catch { return null; }
+        }
+
+        function findTerrainChunks() {
+            const found = [];
+            let off = 0;
+            while (off < replayBuffer.length) {
+                if (replayBuffer[off] === 0x06) {
+                    const c = tryParseReplayChunkAt(off);
+                    if (c) { found.push(c); off = c.end; continue; }
+                }
+                off++;
+            }
+            const latest = new Map();
+            for (const c of found) latest.set(`${c.x},${c.y},${c.z}`, c);
+            return [...latest.values()].sort((a, b) => a.x - b.x || a.y - b.y || a.z - b.z);
+        }
+
+        function zigzagEncode32(n) {
+            return (n << 1) ^ (n >> 31);
+        }
+
+        function avroInt32(n) {
+            let zz = zigzagEncode32(n) >>> 0;
+            const out = [];
+            while (zz >= 0x80) {
+                out.push((zz & 0x7f) | 0x80);
+                zz >>>= 7;
+            }
+            out.push(zz & 0x7f);
+            return new Uint8Array(out);
+        }
+
+        function concatBuffers(bufs) {
+            const total = bufs.reduce((a, b) => a + b.length, 0);
+            const res = new Uint8Array(total);
+            let off = 0;
+            for (const b of bufs) { res.set(b, off); off += b.length; }
+            return res;
+        }
+
+        function splitByXColumns(chunks, limit) {
+            const columns = new Map();
+            for (const c of chunks) {
+                if (!columns.has(c.x)) columns.set(c.x, []);
+                columns.get(c.x).push(c);
+            }
+            const xs = [...columns.keys()].sort((a, b) => a - b);
+            const groups = [];
+            let cur = [];
+            for (const x of xs) {
+                const col = columns.get(x).sort((a, b) => a.y - b.y || a.z - b.z);
+                if (col.length > limit) {
+                    if (cur.length) { groups.push(cur); cur = []; }
+                    for (let i = 0; i < col.length; i += limit) groups.push(col.slice(i, i + limit));
+                    continue;
+                }
+                if (cur.length && cur.length + col.length > limit) {
+                    groups.push(cur);
+                    cur = [];
+                }
+                cur.push(...col);
+            }
+            if (cur.length) groups.push(cur);
+            return groups;
+        }
+
+        function buildPartSchematic(group, partIndex, totalParts, globalMinX, globalMinY, globalMinZ) {
+            const minX = Math.min(...group.map(c => c.x)), maxX = Math.max(...group.map(c => c.x));
+            const minY = Math.min(...group.map(c => c.y)), maxY = Math.max(...group.map(c => c.y));
+            const minZ = Math.min(...group.map(c => c.z)), maxZ = Math.max(...group.map(c => c.z));
+
+            // Calculate placement offset relative to the origin chunk (32 blocks per chunk)
+            const offsetX = (minX - globalMinX) * 32;
+            const offsetY = (minY - globalMinY) * 32;
+            const offsetZ = (minZ - globalMinZ) * 32;
+
+            const rel = group.map(c => ({
+                x: c.x - minX,
+                y: c.y - minY,
+                z: c.z - minZ,
+                blocks: c.blocks
+            }));
+
+            const sizeX = (maxX - minX + 1) * 32;
+            const sizeY = (maxY - minY + 1) * 32;
+            const sizeZ = (maxZ - minZ + 1) * 32;
+
+            let baseName = fileName.replace(/\.bloxdreplay$/i, '');
+            let schemName = baseName;
+
+            // Append coordinates offset [X, Y, Z] directly into the exported file name
+            if (totalParts > 1) {
+                schemName += `_part${partIndex + 1}_offset[X${offsetX}_Y${offsetY}_Z${offsetZ}]`;
+            }
+
+            const parts = [];
+            parts.push(new Uint8Array([4, 0, 0, 0]));
+
+            const nameBytes = new TextEncoder().encode(schemName);
+            parts.push(avroInt32(nameBytes.length), nameBytes);
+
+            parts.push(avroInt32(0), avroInt32(0), avroInt32(0));
+            parts.push(avroInt32(sizeX), avroInt32(sizeY), avroInt32(sizeZ));
+
+            parts.push(avroInt32(rel.length));
+            for (const c of rel) {
+                parts.push(avroInt32(c.x), avroInt32(c.y), avroInt32(c.z));
+                parts.push(avroInt32(c.blocks.length), c.blocks);
+            }
+            parts.push(avroInt32(0));
+
+            for (const v of [0, 4, 45, 14, 0, 0]) parts.push(avroInt32(v));
+
+            return { binary: concatBuffers(parts), name: schemName };
+        }
+
+        function exportSchematic() {
+            const chunks = findTerrainChunks();
+            if (!chunks.length) return alert('No terrain chunks found.');
+
+            const globalMinX = Math.min(...chunks.map(c => c.x));
+            const globalMinY = Math.min(...chunks.map(c => c.y));
+            const globalMinZ = Math.min(...chunks.map(c => c.z));
+
+            const limitInput = parseInt(document.getElementById('maxChunks').value, 10);
+            const maxChunks = (isNaN(limitInput) || limitInput < 1) ? 50 : limitInput;
+
+            const groups = splitByXColumns(chunks, maxChunks);
+
+            groups.forEach((group, index) => {
+                const { binary, name } = buildPartSchematic(group, index, groups.length, globalMinX, globalMinY, globalMinZ);
+                const blob = new Blob([binary], { type: 'application/octet-stream' });
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = `${name}.bloxdschem`;
+                a.click();
+            });
+        }
+
+        const fileInput = document.getElementById('fileInput');
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) handleFile(file);
+        });
+
+        function handleFile(file) {
+            fileName = file.name;
+            document.getElementById('dropZoneText').innerText = `Loaded: ${fileName}`;
+            document.getElementById('dropZoneSubtext').innerText = `${(file.size / 1024 / 1024).toFixed(2)} MB`;
+
+            const reader = new FileReader();
+            reader.onload = (evt) => {
+                replayBuffer = new Uint8Array(evt.target.result);
+                parsedData = parseReplay(replayBuffer);
+                renderUI();
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function renderUI() {
+            document.getElementById('btnDownloadSchem').disabled = false;
+            const chunks = findTerrainChunks();
+            document.getElementById('terrainInfo').innerHTML = `<p style="color:var(--accent)">Found <b>${chunks.length}</b> unique 32x32x32 terrain chunks.</p>`;
+
+            document.getElementById('playerCount').innerText = parsedData.players.length;
+            document.getElementById('playersTable').querySelector('tbody').innerHTML = parsedData.players.map(p =>
+                `<tr><td><b>${p.name}</b></td><td>[${p.position.join(', ')}]</td><td>${p.yawDegrees}° / ${p.pitchDegrees ?? 0}°</td><td>${p.currentMovementSpeed ?? '-'}</td><td>${p.heldItem ?? '-'}</td><td>${p.pose ?? '-'}</td></tr>`
+            ).join('');
+
+            document.getElementById('meshCount').innerText = parsedData.meshRecords.length;
+            document.getElementById('meshTable').querySelector('tbody').innerHTML = parsedData.meshRecords.map(m =>
+                `<tr><td><b>${m.kind}</b></td><td>[${m.position.join(', ')}]</td><td>${m.descriptor}</td></tr>`
+            ).join('');
+
+            document.getElementById('spawnerCount').innerText = parsedData.spawners.length;
+            document.getElementById('spawnersTable').querySelector('tbody').innerHTML = parsedData.spawners.map(s =>
+                `<tr><td><b>${s.type}</b></td><td>[${s.position.join(', ')}]</td><td>[${s.meshPosition.join(', ')}]</td></tr>`
+            ).join('');
+
+            document.getElementById('chestCount').innerText = parsedData.chests.length;
+            document.getElementById('chestsTable').querySelector('tbody').innerHTML = parsedData.chests.map(c =>
+                `<tr><td>[${c.position.join(', ')}]</td><td>[${c.meshPosition.join(', ')}]</td></tr>`
+            ).join('');
+
+            document.getElementById('mobCount').innerText = parsedData.mobs.length;
+            document.getElementById('mobsTable').querySelector('tbody').innerHTML = parsedData.mobs.map(m =>
+                `<tr><td><b>${m.type}</b></td><td>${m.variation ?? '-'}</td><td>[${m.position.join(', ')}]</td><td>${m.yawDegrees}°</td><td>${m.currentMovementSpeed ?? '-'}</td><td>${m.scale ?? '-'}</td></tr>`
+            ).join('');
+
+            document.getElementById('jsonOutput').textContent = JSON.stringify(parsedData, null, 2);
+        }
+    </script>
+</body>
+
+</html>
