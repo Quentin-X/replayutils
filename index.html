@@ -773,11 +773,7 @@
       const sizeZ = (maxZ - minZ + 1) * 32;
 
       let baseName = fileName.replace(/\.bloxdreplay$/i, '');
-      let schemName = baseName;
-
-      if (totalParts > 1) {
-        schemName += `_part${partIndex + 1}_offset[X${offsetX}_Y${offsetY}_Z${offsetZ}]`;
-      }
+      let schemName = totalParts > 1 ? `part${partIndex + 1}_offset[X${offsetX}_Y${offsetY}_Z${offsetZ}]` : baseName;
 
       const parts = [];
       parts.push(new Uint8Array([4, 0, 0, 0]));
