@@ -255,8 +255,8 @@
                 <h2>Export Schematic (.bloxdschem)</h2>
                 <p style="color: var(--text-muted); margin-bottom: 1rem;">Use to get builds from recording. A ZIP file would be downloaded for big schematics. Open it and paste the schematic based on the offset given at the end of the file name.</p>
                 <div class="controls-group">
-                    <label for="maxChunks">Max chunks per split (above 1 might not work):</label>
-                    <input type="number" id="maxChunks" value="1" min="1" />
+                    <label for="maxChunks">Max chunks per split (above 3 might not work, lower if 3 doesn't work):</label>
+                    <input type="number" id="maxChunks" value="3" min="1" />
                     <button class="btn" id="btnDownloadSchem" disabled onclick="exportSchematic()">Download
                         .bloxdschem</button>
                 </div>
