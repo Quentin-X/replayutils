@@ -716,7 +716,11 @@
     if (replayBuffer[off] === 0x06) {
       const c = tryParseReplayChunkAt(off);
       if (c) { 
-        found.push(c); // Do NOT filter out c.isEmpty
+        // Ensure every chunk object has a valid .blocks buffer
+        if (!c.blocks) {
+          c.blocks = createEmptyChunkBuffer();
+        }
+        found.push(c); 
         off = c.end; 
         continue; 
       }
@@ -788,12 +792,13 @@ function buildPartSchematic(group, partIndex, totalParts, globalMinX, globalMinY
   const offsetY = (minY - globalMinY) * 32;
   const offsetZ = (minZ - globalMinZ) * 32;
 
-  // Local chunk relative coordinates
+  // Ensure every chunk in this part has a valid Uint8Array buffer
+  const defaultEmptyBuf = createEmptyChunkBuffer();
   const rel = group.map(c => ({
     x: c.x - minX,
     y: c.y - minY,
     z: c.z - minZ,
-    blocks: c.blocks
+    blocks: c.blocks || defaultEmptyBuf
   }));
 
   const sizeX = (maxX - minX + 1) * 32;
@@ -805,7 +810,7 @@ function buildPartSchematic(group, partIndex, totalParts, globalMinX, globalMinY
 
   const parts = [];
 
-  // 1. Correct Format Version Header (Avro Varint int value 4)
+  // 1. Format Version Header (Avro ZigZag Varint 4 -> 0x08)
   parts.push(avroInt32(4));
 
   // 2. Schematic Name String Header
@@ -821,14 +826,15 @@ function buildPartSchematic(group, partIndex, totalParts, globalMinX, globalMinY
   // 5. Chunk List Payload
   parts.push(avroInt32(rel.length));
   for (const c of rel) {
+    const buf = c.blocks || defaultEmptyBuf;
     parts.push(avroInt32(c.x), avroInt32(c.y), avroInt32(c.z));
-    parts.push(avroInt32(c.blocks.length), c.blocks);
+    parts.push(avroInt32(buf.length), buf);
   }
   
-  // 6. End of Chunk Array Flag (Avro Null Terminator = 0)
+  // 6. End of Chunk Array Flag (0)
   parts.push(avroInt32(0));
 
-  // 7. Standard Bloxd Metadata Footer
+  // 7. Bloxd Metadata Footer
   parts.push(avroInt32(0));  // Extra flags count
   parts.push(avroInt32(4));  // Block format version
   parts.push(avroInt32(45)); // Air block ID map key
@@ -840,7 +846,7 @@ function buildPartSchematic(group, partIndex, totalParts, globalMinX, globalMinY
 }
 
 async function exportSchematic() {
-  const chunks = findTerrainChunks(); // Keep all extracted chunks
+  const chunks = findTerrainChunks();
   if (!chunks.length) return alert('No terrain chunks found.');
 
   const btn = document.getElementById('btnDownloadSchem');
