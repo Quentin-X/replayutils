@@ -732,17 +732,16 @@
       return (n << 1) ^ (n >> 31);
     }
 
-    function avroInt32(n) {
-      let zz = zigzagEncode32(n) >>> 0;
-      const out = [];
-      while (zz >= 0x80) {
-        out.push((zz & 0x7f) | 0x80);
-        zz >>>= 7;
-      }
-      out.push(zz & 0x7f);
-      return new Uint8Array(out);
-    }
-
+    function avroInt32(val) {
+  let zz = (val << 1) ^ (val >> 31);
+  const out = [];
+  while ((zz & ~0x7f) !== 0) {
+    out.push((zz & 0x7f) | 0x80);
+    zz >>>= 7;
+  }
+  out.push(zz & 0x7f);
+  return new Uint8Array(out);
+}
     function concatBuffers(bufs) {
       const total = bufs.reduce((a, b) => a + b.length, 0);
       const res = new Uint8Array(total);
@@ -778,78 +777,76 @@
     }
 
 function buildPartSchematic(group, partIndex, totalParts, globalMinX, globalMinY, globalMinZ) {
-  // 1. Calculate local minimums among the remaining NON-EMPTY chunks in this group
-  const groupMinX = Math.min(...group.map(c => c.x));
-  const groupMinY = Math.min(...group.map(c => c.y));
-  const groupMinZ = Math.min(...group.map(c => c.z));
+  const minX = Math.min(...group.map(c => c.x));
+  const maxX = Math.max(...group.map(c => c.x));
+  const minY = Math.min(...group.map(c => c.y));
+  const maxY = Math.max(...group.map(c => c.y));
+  const minZ = Math.min(...group.map(c => c.z));
+  const maxZ = Math.max(...group.map(c => c.z));
 
-  const groupMaxX = Math.max(...group.map(c => c.x));
-  const groupMaxY = Math.max(...group.map(c => c.y));
-  const groupMaxZ = Math.max(...group.map(c => c.z));
+  const offsetX = (minX - globalMinX) * 32;
+  const offsetY = (minY - globalMinY) * 32;
+  const offsetZ = (minZ - globalMinZ) * 32;
 
-  // 2. Global world offsets relative to the main world origin (for placement)
-  const offsetX = (groupMinX - globalMinX) * 32;
-  const offsetY = (groupMinY - globalMinY) * 32;
-  const offsetZ = (groupMinZ - globalMinZ) * 32;
-
-  // 3. Normalize internal relative chunk coordinates so they start from (0, 0, 0)
+  // Local chunk relative coordinates
   const rel = group.map(c => ({
-    x: c.x - groupMinX,
-    y: c.y - groupMinY,
-    z: c.z - groupMinZ,
+    x: c.x - minX,
+    y: c.y - minY,
+    z: c.z - minZ,
     blocks: c.blocks
   }));
 
-  // 4. Exact bounding box size of ONLY the present non-empty space
-  const sizeX = (groupMaxX - groupMinX + 1) * 32;
-  const sizeY = (groupMaxY - groupMinY + 1) * 32;
-  const sizeZ = (groupMaxZ - groupMinZ + 1) * 32;
+  const sizeX = (maxX - minX + 1) * 32;
+  const sizeY = (maxY - minY + 1) * 32;
+  const sizeZ = (maxZ - minZ + 1) * 32;
 
   let baseName = fileName.replace(/\.bloxdreplay$/i, '');
   let schemName = totalParts > 1 ? `${baseName}_part${partIndex + 1}_off[${offsetX},${offsetY},${offsetZ}]` : baseName;
 
   const parts = [];
-  
-  // Format Header (Version 4)
-  parts.push(new Uint8Array([4, 0, 0, 0]));
 
-  // Schematic Name
+  // 1. Correct Format Version Header (Avro Varint int value 4)
+  parts.push(avroInt32(4));
+
+  // 2. Schematic Name String Header
   const nameBytes = new TextEncoder().encode(schemName);
   parts.push(avroInt32(nameBytes.length), nameBytes);
 
-  // Internal Origin (0, 0, 0)
+  // 3. Origin Offset (0, 0, 0)
   parts.push(avroInt32(0), avroInt32(0), avroInt32(0));
-  
-  // Tight Bounds
+
+  // 4. Bounding Box Dimensions
   parts.push(avroInt32(sizeX), avroInt32(sizeY), avroInt32(sizeZ));
 
-  // Chunk Count (Only non-empty chunks)
+  // 5. Chunk List Payload
   parts.push(avroInt32(rel.length));
-  
   for (const c of rel) {
     parts.push(avroInt32(c.x), avroInt32(c.y), avroInt32(c.z));
     parts.push(avroInt32(c.blocks.length), c.blocks);
   }
   
-  parts.push(avroInt32(0)); // End of chunk stream marker
+  // 6. End of Chunk Array Flag (Avro Null Terminator = 0)
+  parts.push(avroInt32(0));
 
-  // Tail Metadata
-  for (const v of [0, 4, 45, 14, 0, 0]) {
-    parts.push(avroInt32(v));
-  }
+  // 7. Standard Bloxd Metadata Footer
+  parts.push(avroInt32(0));  // Extra flags count
+  parts.push(avroInt32(4));  // Block format version
+  parts.push(avroInt32(45)); // Air block ID map key
+  parts.push(avroInt32(14)); // Palette depth
+  parts.push(avroInt32(0));  // Reserved 1
+  parts.push(avroInt32(0));  // Reserved 2
 
   return { binary: concatBuffers(parts), name: schemName };
 }
 
 async function exportSchematic() {
-  const chunks = findTerrainChunks();
+  const chunks = findTerrainChunks(); // Keep all extracted chunks
   if (!chunks.length) return alert('No terrain chunks found.');
 
   const btn = document.getElementById('btnDownloadSchem');
   btn.disabled = true;
   btn.innerText = 'Creating ZIP...';
 
-  // Calculate global origin bounding box across ALL valid non-empty chunks
   const globalMinX = Math.min(...chunks.map(c => c.x));
   const globalMinY = Math.min(...chunks.map(c => c.y));
   const globalMinZ = Math.min(...chunks.map(c => c.z));
