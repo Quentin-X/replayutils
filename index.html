@@ -710,23 +710,23 @@
     }
 
     function findTerrainChunks() {
-      const found = [];
-      let off = 0;
-      while (off < replayBuffer.length) {
-        if (replayBuffer[off] === 0x06) {
-          const c = tryParseReplayChunkAt(off);
-          if (c) { 
-            if (!c.isEmpty) found.push(c); 
-            off = c.end; 
-            continue; 
-          }
-        }
-        off++;
+  const found = [];
+  let off = 0;
+  while (off < replayBuffer.length) {
+    if (replayBuffer[off] === 0x06) {
+      const c = tryParseReplayChunkAt(off);
+      if (c) { 
+        found.push(c); // Do NOT filter out c.isEmpty
+        off = c.end; 
+        continue; 
       }
-      const latest = new Map();
-      for (const c of found) latest.set(`${c.x},${c.y},${c.z}`, c);
-      return [...latest.values()].sort((a, b) => a.x - b.x || a.y - b.y || a.z - b.z);
     }
+    off++;
+  }
+  const latest = new Map();
+  for (const c of found) latest.set(`${c.x},${c.y},${c.z}`, c);
+  return [...latest.values()].sort((a, b) => a.x - b.x || a.y - b.y || a.z - b.z);
+}
 
     function zigzagEncode32(n) {
       return (n << 1) ^ (n >> 31);
