@@ -777,44 +777,66 @@
       return groups;
     }
 
-// Ensure Avro varint length matching is applied dynamically
 function buildPartSchematic(group, partIndex, totalParts, globalMinX, globalMinY, globalMinZ) {
-  // Filter and compute active bounds
+  // 1. Calculate local minimums among the remaining NON-EMPTY chunks in this group
+  const groupMinX = Math.min(...group.map(c => c.x));
+  const groupMinY = Math.min(...group.map(c => c.y));
+  const groupMinZ = Math.min(...group.map(c => c.z));
+
+  const groupMaxX = Math.max(...group.map(c => c.x));
+  const groupMaxY = Math.max(...group.map(c => c.y));
+  const groupMaxZ = Math.max(...group.map(c => c.z));
+
+  // 2. Global world offsets relative to the main world origin (for placement)
+  const offsetX = (groupMinX - globalMinX) * 32;
+  const offsetY = (groupMinY - globalMinY) * 32;
+  const offsetZ = (groupMinZ - globalMinZ) * 32;
+
+  // 3. Normalize internal relative chunk coordinates so they start from (0, 0, 0)
   const rel = group.map(c => ({
-    x: c.x - globalMinX,
-    y: c.y - globalMinY,
-    z: c.z - globalMinZ,
+    x: c.x - groupMinX,
+    y: c.y - groupMinY,
+    z: c.z - groupMinZ,
     blocks: c.blocks
   }));
 
-  const parts = [];
-  parts.push(new Uint8Array([4, 0, 0, 0])); // Format Version
+  // 4. Exact bounding box size of ONLY the present non-empty space
+  const sizeX = (groupMaxX - groupMinX + 1) * 32;
+  const sizeY = (groupMaxY - groupMinY + 1) * 32;
+  const sizeZ = (groupMaxZ - groupMinZ + 1) * 32;
 
   let baseName = fileName.replace(/\.bloxdreplay$/i, '');
-  let schemName = totalParts > 1 ? `${baseName}_part${partIndex + 1}` : baseName;
-  const nameBytes = new TextEncoder().encode(schemName);
+  let schemName = totalParts > 1 ? `${baseName}_part${partIndex + 1}_off[${offsetX},${offsetY},${offsetZ}]` : baseName;
+
+  const parts = [];
   
+  // Format Header (Version 4)
+  parts.push(new Uint8Array([4, 0, 0, 0]));
+
+  // Schematic Name
+  const nameBytes = new TextEncoder().encode(schemName);
   parts.push(avroInt32(nameBytes.length), nameBytes);
 
-  // Origin Offsets
+  // Internal Origin (0, 0, 0)
   parts.push(avroInt32(0), avroInt32(0), avroInt32(0));
   
-  // Calculate exact bounds of remaining chunks
-  const maxX = Math.max(...rel.map(c => c.x)) + 1;
-  const maxY = Math.max(...rel.map(c => c.y)) + 1;
-  const maxZ = Math.max(...rel.map(c => c.z)) + 1;
-  
-  parts.push(avroInt32(maxX * 32), avroInt32(maxY * 32), avroInt32(maxZ * 32));
+  // Tight Bounds
+  parts.push(avroInt32(sizeX), avroInt32(sizeY), avroInt32(sizeZ));
 
-  // Write exact count of NON-EMPTY chunks
+  // Chunk Count (Only non-empty chunks)
   parts.push(avroInt32(rel.length));
+  
   for (const c of rel) {
     parts.push(avroInt32(c.x), avroInt32(c.y), avroInt32(c.z));
     parts.push(avroInt32(c.blocks.length), c.blocks);
   }
   
-  parts.push(avroInt32(0)); // End of chunk array marker
-  for (const v of [0, 4, 45, 14, 0, 0]) parts.push(avroInt32(v));
+  parts.push(avroInt32(0)); // End of chunk stream marker
+
+  // Tail Metadata
+  for (const v of [0, 4, 45, 14, 0, 0]) {
+    parts.push(avroInt32(v));
+  }
 
   return { binary: concatBuffers(parts), name: schemName };
 }
