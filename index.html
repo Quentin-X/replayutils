@@ -777,17 +777,9 @@
       return groups;
     }
 
-    function buildPartSchematic(group, partIndex, totalParts, globalMinX, globalMinY, globalMinZ) {
-  const minX = Math.min(...group.map(c => c.x)), maxX = Math.max(...group.map(c => c.x));
-  const minY = Math.min(...group.map(c => c.y)), maxY = Math.max(...group.map(c => c.y));
-  const minZ = Math.min(...group.map(c => c.z)), maxZ = Math.max(...group.map(c => c.z));
-
-  // Calculate global world offset based on the overall replay bounding box minimums
-  const offsetX = (minX - globalMinX) * 32;
-  const offsetY = (minY - globalMinY) * 32;
-  const offsetZ = (minZ - globalMinZ) * 32;
-
-  // Chunk coordinates inside this specific schematic must be relative to the global origin
+// Ensure Avro varint length matching is applied dynamically
+function buildPartSchematic(group, partIndex, totalParts, globalMinX, globalMinY, globalMinZ) {
+  // Filter and compute active bounds
   const rel = group.map(c => ({
     x: c.x - globalMinX,
     y: c.y - globalMinY,
@@ -795,30 +787,33 @@
     blocks: c.blocks
   }));
 
-  // Calculate full dimensions using global offsets to maintain coordinate alignment
-  const sizeX = (maxX - globalMinX + 1) * 32;
-  const sizeY = (maxY - globalMinY + 1) * 32;
-  const sizeZ = (maxZ - globalMinZ + 1) * 32;
+  const parts = [];
+  parts.push(new Uint8Array([4, 0, 0, 0])); // Format Version
 
   let baseName = fileName.replace(/\.bloxdreplay$/i, '');
-  let schemName = totalParts > 1 ? `part${partIndex + 1}_offset[X${offsetX}_Y${offsetY}_Z${offsetZ}]` : baseName;
-
-  const parts = [];
-  parts.push(new Uint8Array([4, 0, 0, 0]));
-
+  let schemName = totalParts > 1 ? `${baseName}_part${partIndex + 1}` : baseName;
   const nameBytes = new TextEncoder().encode(schemName);
+  
   parts.push(avroInt32(nameBytes.length), nameBytes);
 
+  // Origin Offsets
   parts.push(avroInt32(0), avroInt32(0), avroInt32(0));
-  parts.push(avroInt32(sizeX), avroInt32(sizeY), avroInt32(sizeZ));
+  
+  // Calculate exact bounds of remaining chunks
+  const maxX = Math.max(...rel.map(c => c.x)) + 1;
+  const maxY = Math.max(...rel.map(c => c.y)) + 1;
+  const maxZ = Math.max(...rel.map(c => c.z)) + 1;
+  
+  parts.push(avroInt32(maxX * 32), avroInt32(maxY * 32), avroInt32(maxZ * 32));
 
+  // Write exact count of NON-EMPTY chunks
   parts.push(avroInt32(rel.length));
   for (const c of rel) {
     parts.push(avroInt32(c.x), avroInt32(c.y), avroInt32(c.z));
     parts.push(avroInt32(c.blocks.length), c.blocks);
   }
-  parts.push(avroInt32(0));
-
+  
+  parts.push(avroInt32(0)); // End of chunk array marker
   for (const v of [0, 4, 45, 14, 0, 0]) parts.push(avroInt32(v));
 
   return { binary: concatBuffers(parts), name: schemName };
