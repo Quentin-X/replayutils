@@ -778,87 +778,84 @@
     }
 
     function buildPartSchematic(group, partIndex, totalParts, globalMinX, globalMinY, globalMinZ) {
-  const minX = Math.min(...group.map(c => c.x)), maxX = Math.max(...group.map(c => c.x));
-  const minY = Math.min(...group.map(c => c.y)), maxY = Math.max(...group.map(c => c.y));
-  const minZ = Math.min(...group.map(c => c.z)), maxZ = Math.max(...group.map(c => c.z));
+      const minX = Math.min(...group.map(c => c.x)), maxX = Math.max(...group.map(c => c.x));
+      const minY = Math.min(...group.map(c => c.y)), maxY = Math.max(...group.map(c => c.y));
+      const minZ = Math.min(...group.map(c => c.z)), maxZ = Math.max(...group.map(c => c.z));
 
-  // Calculate global world offset based on the overall replay bounding box minimums
-  const offsetX = (minX - globalMinX) * 32;
-  const offsetY = (minY - globalMinY) * 32;
-  const offsetZ = (minZ - globalMinZ) * 32;
+      const offsetX = (minX - globalMinX) * 32;
+      const offsetY = (minY - globalMinY) * 32;
+      const offsetZ = (minZ - globalMinZ) * 32;
 
-  // Chunk coordinates inside this specific schematic must be relative to the global origin
-  const rel = group.map(c => ({
-    x: c.x - globalMinX,
-    y: c.y - globalMinY,
-    z: c.z - globalMinZ,
-    blocks: c.blocks
-  }));
+      const rel = group.map(c => ({
+        x: c.x - minX,
+        y: c.y - minY,
+        z: c.z - minZ,
+        blocks: c.blocks
+      }));
 
-  // Calculate full dimensions using global offsets to maintain coordinate alignment
-  const sizeX = (maxX - globalMinX + 1) * 32;
-  const sizeY = (maxY - globalMinY + 1) * 32;
-  const sizeZ = (maxZ - globalMinZ + 1) * 32;
+      const sizeX = (maxX - minX + 1) * 32;
+      const sizeY = (maxY - minY + 1) * 32;
+      const sizeZ = (maxZ - minZ + 1) * 32;
 
-  let baseName = fileName.replace(/\.bloxdreplay$/i, '');
-  let schemName = totalParts > 1 ? `part${partIndex + 1}_offset[X${offsetX}_Y${offsetY}_Z${offsetZ}]` : baseName;
+      let baseName = fileName.replace(/\.bloxdreplay$/i, '');
+      let schemName = totalParts > 1 ? `part${partIndex + 1}_offset[X${offsetX}_Y${offsetY}_Z${offsetZ}]` : baseName;
 
-  const parts = [];
-  parts.push(new Uint8Array([4, 0, 0, 0]));
+      const parts = [];
+      parts.push(new Uint8Array([4, 0, 0, 0]));
 
-  const nameBytes = new TextEncoder().encode(schemName);
-  parts.push(avroInt32(nameBytes.length), nameBytes);
+      const nameBytes = new TextEncoder().encode(schemName);
+      parts.push(avroInt32(nameBytes.length), nameBytes);
 
-  parts.push(avroInt32(0), avroInt32(0), avroInt32(0));
-  parts.push(avroInt32(sizeX), avroInt32(sizeY), avroInt32(sizeZ));
+      parts.push(avroInt32(0), avroInt32(0), avroInt32(0));
+      parts.push(avroInt32(sizeX), avroInt32(sizeY), avroInt32(sizeZ));
 
-  parts.push(avroInt32(rel.length));
-  for (const c of rel) {
-    parts.push(avroInt32(c.x), avroInt32(c.y), avroInt32(c.z));
-    parts.push(avroInt32(c.blocks.length), c.blocks);
-  }
-  parts.push(avroInt32(0));
+      parts.push(avroInt32(rel.length));
+      for (const c of rel) {
+        parts.push(avroInt32(c.x), avroInt32(c.y), avroInt32(c.z));
+        parts.push(avroInt32(c.blocks.length), c.blocks);
+      }
+      parts.push(avroInt32(0));
 
-  for (const v of [0, 4, 45, 14, 0, 0]) parts.push(avroInt32(v));
+      for (const v of [0, 4, 45, 14, 0, 0]) parts.push(avroInt32(v));
 
-  return { binary: concatBuffers(parts), name: schemName };
-}
+      return { binary: concatBuffers(parts), name: schemName };
+    }
 
-async function exportSchematic() {
-  const chunks = findTerrainChunks();
-  if (!chunks.length) return alert('No terrain chunks found.');
+    async function exportSchematic() {
+      const chunks = findTerrainChunks();
+      if (!chunks.length) return alert('No terrain chunks found.');
 
-  const btn = document.getElementById('btnDownloadSchem');
-  btn.disabled = true;
-  btn.innerText = 'Creating ZIP...';
+      const btn = document.getElementById('btnDownloadSchem');
+      btn.disabled = true;
+      btn.innerText = 'Creating ZIP...';
 
-  // Calculate global origin bounding box across ALL valid non-empty chunks
-  const globalMinX = Math.min(...chunks.map(c => c.x));
-  const globalMinY = Math.min(...chunks.map(c => c.y));
-  const globalMinZ = Math.min(...chunks.map(c => c.z));
+      const globalMinX = Math.min(...chunks.map(c => c.x));
+      const globalMinY = Math.min(...chunks.map(c => c.y));
+      const globalMinZ = Math.min(...chunks.map(c => c.z));
 
-  const limitInput = parseInt(document.getElementById('maxChunks').value, 10);
-  const maxChunks = (isNaN(limitInput) || limitInput < 1) ? 50 : limitInput;
+      const limitInput = parseInt(document.getElementById('maxChunks').value, 10);
+      const maxChunks = (isNaN(limitInput) || limitInput < 1) ? 50 : limitInput;
 
-  const groups = splitByXColumns(chunks, maxChunks);
-  const zip = new JSZip();
+      const groups = splitByXColumns(chunks, maxChunks);
+      const zip = new JSZip();
 
-  groups.forEach((group, index) => {
-    const { binary, name } = buildPartSchematic(group, index, groups.length, globalMinX, globalMinY, globalMinZ);
-    zip.file(`${name}.bloxdschem`, binary);
-  });
+      groups.forEach((group, index) => {
+        const { binary, name } = buildPartSchematic(group, index, groups.length, globalMinX, globalMinY, globalMinZ);
+        zip.file(`${name}.bloxdschem`, binary);
+      });
 
-  const zipName = fileName.replace(/\.bloxdreplay$/i, '') + '_schematics.zip';
-  const blob = await zip.generateAsync({ type: 'blob' });
+      const zipName = fileName.replace(/\.bloxdreplay$/i, '') + '_schematics.zip';
+      const blob = await zip.generateAsync({ type: 'blob' });
 
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = zipName;
-  a.click();
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = zipName;
+      a.click();
 
-  btn.disabled = false;
-  btn.innerText = 'Download ZIP';
-}
+      btn.disabled = false;
+      btn.innerText = 'Download ZIP';
+    }
+
     const fileInput = document.getElementById('fileInput');
     fileInput.addEventListener('change', (e) => {
       const file = e.target.files[0];
