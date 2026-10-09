@@ -244,7 +244,20 @@
             font-size: 0.85rem;
             color: #a9def9;
             white-space: pre-wrap;
-            margin-top: 1rem;
+            margin-top: 0.5rem;
+        }
+
+        .code-section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 1.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .code-section-header h3 {
+            color: var(--accent);
+            font-size: 1rem;
         }
 
         .controls-group {
@@ -303,25 +316,37 @@
 
         <div id="tab-terrain" class="tab-content active">
             <div class="card">
-                <h2>Export Bloxd API Code (World Code) <b>[RECOMMENDED]</b></h2>
-                <p style="color: var(--text-muted); margin-bottom: 1rem;">Use to get builds from recording. Generates a fast JavaScript script using the
-                    <code>sbr</code> builder engine (by Ocelote) to place all recorded blocks via the Bloxd Code API.
+                <h2>Export Bloxd API Code <b>[RECOMMENDED]</b></h2>
+                <p style="color: var(--text-muted); margin-bottom: 1rem;">Generates fast JavaScript using the
+                    <code>sbr</code> engine split between World Code and Code Block (relative to Code Block position).
                 </p>
                 <div class="controls-group">
                     <button class="btn" id="btnGenerateCode" disabled onclick="generateAndDisplayCode()">Generate
                         Code</button>
-                    <button class="btn btn-secondary" id="btnCopyCode" disabled onclick="copyGeneratedCode()">Copy Code
-                        to Clipboard</button>
                     <button class="btn btn-secondary" id="btnDownloadCode" disabled
-                        onclick="downloadCodeFile()">Download .js File</button>
+                        onclick="downloadCodeFile()">Download Combined .js File</button>
                 </div>
-                <div id="codePreviewBox" class="code-preview" style="display: none;">// Click "Generate Code" above to
-                    render JS code here...</div>
+
+                <div class="code-section-header">
+                    <h3>World Code</h3>
+                    <button class="btn btn-secondary" id="btnCopyWorldCode" disabled
+                        onclick="copyCode('worldCodePreview', 'btnCopyWorldCode')">Copy World Code</button>
+                </div>
+                <pre id="worldCodePreview"
+                    class="code-preview">// Click "Generate Code" above to load World Code...</pre>
+
+                <div class="code-section-header">
+                    <h3>Code Block (Relative Placement)</h3>
+                    <button class="btn btn-secondary" id="btnCopyBlockCode" disabled
+                        onclick="copyCode('blockCodePreview', 'btnCopyBlockCode')">Copy Code Block</button>
+                </div>
+                <pre id="blockCodePreview"
+                    class="code-preview">// Click "Generate Code" above to generate the block placement code...</pre>
             </div>
 
             <div class="card">
                 <h2>Export Schematic (.bloxdschem) <b>[NOT RECOMMENDED, BUGGY]</b></h2>
-                <p style="color: var(--text-muted); margin-bottom: 1rem;">Use to get builds from recording (above is better at it). A ZIP file
+                <p style="color: var(--text-muted); margin-bottom: 1rem;">Use to get builds from recording. A ZIP file
                     would be downloaded. Open it and paste the schematic based on the offset given at the end of the
                     file name.</p>
                 <div class="controls-group">
@@ -451,9 +476,7 @@
             <div class="card">
                 <h2>Blocks Summary (<span id="blockTypesCount">0</span> unique block types)</h2>
                 <p style="color: var(--text-muted); margin-bottom: 1rem;">Gets the recorded blocks. Click on any block
-                    type to view recorded
-                    coordinates (relative for now, use the first recorded own coordinates and add them to get real
-                    coordinates).</p>
+                    type to view recorded coordinates.</p>
                 <table id="blocksTable">
                     <thead>
                         <tr>
@@ -4701,13 +4724,17 @@
             4217: "Vegetable Soup",
         };
 
-        const SBR_LIB = `// Paste me in world code!
-/*sbr by Ocelote, licensable under CC0*/(sbr=function(...e){e.length>0&&sbr.rawInputQueue.push(e)}).rawInputQueue=[],sbr.buildQueue=[],sbr.rateLimitCooldown=0,sbr.SPECIAL_BLOCK_IDS=new Set([204,205,206,207,952,953,954,955,1291,1292,1293,1294,1510,2088,2089,2090,2091]),sbr.MAX_RECT_VOLUME=360,sbr.TICK_BUDGET=250,sbr.COST_SCAN_BLOCK=.5,sbr.COST_SCAN_DATA=.7,sbr.COST_BUILD_RECT=10,sbr.COST_BUILD_DATA=1,sbr.COST_SPLIT_RECT=2,sbr.COST_CHUNK_CHECK=8,sbr.free=function(){return 0===sbr.rawInputQueue.length&&0===sbr.buildQueue.length&&sbr.ior.free()},sbr.kill=function(){sbr.rawInputQueue=[],sbr.buildQueue=[],sbr.ior.kill()},sbr.getVol=function(e,t){let l=[t[0]-e[0]+1,t[1]-e[1]+1,t[2]-e[2]+1];return{dims:l,vol:l[0]*l[1]*l[2]}},sbr.deconstructWalls=function(e){let[t,l,u,n,$]=e,s=[],i=Math.min(t[0],l[0]),o=Math.min(t[1],l[1]),a=Math.min(t[2],l[2]),r=Math.max(t[0],l[0]),c=Math.max(t[1],l[1]),_=Math.max(t[2],l[2]);n&&s.push([[i,o,a],[r,o,_],u]),$&&s.push([[i,c,a],[r,c,_],u]),s.push([[i,o,a],[i,c,_],u]),s.push([[r,o,a],[r,c,_],u]);let C=n?o+1:o,d=$?c-1:c;return C<=d&&i+1<=r-1&&(s.push([[i+1,C,a],[r-1,d,a],u]),s.push([[i+1,C,_],[r-1,d,_],u])),s},sbr.checkAndLoadChunks=function(e,t){let l=[Math.min(e[0],t[0]),Math.min(e[1],t[1]),Math.min(e[2],t[2])],u=[Math.max(e[0],t[0]),Math.max(e[1],t[1]),Math.max(e[2],t[2])],n=!0;for(let $=l[0];$<=u[0];$+=32)for(let s=l[1];s<=u[1];s+=32)for(let i=l[2];i<=u[2];i+=32)api.isBlockInLoadedChunk($,s,i)||(api.getBlockId($,s,i),n=!1);return n},sbr.getTaskRange=function(e){return e?"gclone"===e[0]||"rect_with_data"===e[0]?[e[1],e[2]]:3===e.length&&Array.isArray(e[0])?[e[0],e[1]]:2===e.length&&Array.isArray(e[0])?[e[0],e[0]]:[e.slice(0,3),e.slice(0,3)]:[[0,0,0],[0,0,0]]},sbr.tick=function(){if(sbr.rateLimitCooldown>0){sbr.rateLimitCooldown--;return}if(0===sbr.rawInputQueue.length&&0===sbr.buildQueue.length){sbr.ior.tick();return}let e=0;for(;sbr.rawInputQueue.length>0&&e<50;){e++;let t=sbr.rawInputQueue.shift();for(;1===t.length&&Array.isArray(t[0]);)t=t[0];t.length>0&&(!Array.isArray(t[0])||Array.isArray(t[0])&&!Array.isArray(t[0][0]))&&(t=[t]);for(let l=0;l<t.length;l++){let u=t[l];if(u&&Array.isArray(u)){if(5===u.length&&"boolean"==typeof u[3]){let n=sbr.deconstructWalls(u);t.splice(l,1,...n),l--}else 4===u.length&&u.every(e=>Array.isArray(e))?sbr.buildQueue.push(["gclone",...u,{scanPos:null,run:null}]):sbr.buildQueue.push(u)}}}let $=sbr.TICK_BUDGET,s=0;for(;$>0&&sbr.buildQueue.length>0&&s<1e3;){s++;let i=sbr.buildQueue[0],[o,a]=sbr.getTaskRange(i);if(!sbr.checkAndLoadChunks(o,a)){$-=sbr.COST_CHUNK_CHECK;for(let r=1;r<Math.min(sbr.buildQueue.length,15)&&$>=sbr.COST_CHUNK_CHECK;r++){let[c,_]=sbr.getTaskRange(sbr.buildQueue[r]);sbr.checkAndLoadChunks(c,_),$-=sbr.COST_CHUNK_CHECK}break}try{if("gclone"===i[0]){let[C,d,f,h,T,g]=i,k=[Math.min(d[0],f[0]),Math.min(d[1],f[1]),Math.min(d[2],f[2])],A=[Math.max(d[0],f[0]),Math.max(d[1],f[1]),Math.max(d[2],f[2])],m=[A[0]-k[0]+1,A[1]-k[1]+1,A[2]-k[2]+1],b=[h[0]-d[0],h[1]-d[1],h[2]-d[2]];null===g.scanPos&&(g.scanPos=[0,0,0],g.run={startPos:[0,0,0],blockType:api.getBlockId(k[0],k[1],k[2])});let p=!1;for(;$>=sbr.COST_SCAN_BLOCK;){$-=sbr.COST_SCAN_BLOCK;let[S,B,I]=g.scanPos,L=api.getBlockId(k[0]+S,k[1]+B,k[2]+I);if(L!==g.run.blockType||S===m[0]-1){let O=g.run.startPos,Q=L!==g.run.blockType?S-1:S,D=g.run.blockType;if(D&&0!==D){let y=[k[0]+O[0]+b[0],k[1]+B+b[1],k[2]+I+b[2]],P=[k[0]+Q+b[0],k[1]+B+b[1],k[2]+I+b[2]];if(sbr.SPECIAL_BLOCK_IDS.has(D)){let U=[];for(let E=O[0];E<=Q&&$>=sbr.COST_SCAN_DATA;E++)$-=sbr.COST_SCAN_DATA,U.push(api.getBlockData(k[0]+E,k[1]+B,k[2]+I));sbr.buildQueue.splice(1,0,["rect_with_data",y,P,String(D),U,0])}else sbr.buildQueue.splice(1,0,[y,P,String(D)])}g.run={startPos:[S,B,I],blockType:L}}if(g.scanPos[0]++,g.scanPos[0]>=m[0]&&(g.scanPos[0]=0,g.scanPos[1]++,g.scanPos[1]>=m[1]&&(g.scanPos[1]=0,g.scanPos[2]++),g.scanPos[2]<m[2]&&(g.run={startPos:[...g.scanPos],blockType:api.getBlockId(k[0],k[1]+g.scanPos[1],k[2]+g.scanPos[2])})),g.scanPos[2]>=m[2]){p=!0;break}}p&&sbr.buildQueue.shift()}else if("rect_with_data"===i[0]){let[w,K,x,R,N,H]=i;0===H&&(api.setBlockRect(K,x,R),$-=sbr.COST_BUILD_RECT);let v=H;for(;$>=sbr.COST_BUILD_DATA&&v<N.length;)$-=sbr.COST_BUILD_DATA,null!==N[v]&&api.setBlockData(K[0]+v,K[1],K[2],N[v]),v++;v>=N.length?sbr.buildQueue.shift():i[5]=v}else if(3===i.length&&Array.isArray(i[0])){let[M,V,G]=i,W=[Math.min(M[0],V[0]),Math.min(M[1],V[1]),Math.min(M[2],V[2])],X=[Math.max(M[0],V[0]),Math.max(M[1],V[1]),Math.max(M[2],V[2])],{dims:j,vol:q}=sbr.getVol(W,X);if(q>sbr.MAX_RECT_VOLUME){let z=j.indexOf(Math.max(...j)),F=W[z]+Math.floor(j[z]/2)-1,J=[...X];J[z]=F;let Y=[...W];Y[z]=F+1,sbr.buildQueue.splice(0,1,[W,J,G],[Y,X,G]),$-=sbr.COST_SPLIT_RECT}else api.setBlockRect(W,X,String(G)),sbr.buildQueue.shift(),$-=sbr.COST_BUILD_RECT}else if(2===i.length&&Array.isArray(i[0]))api.setBlockData(i[0][0],i[0][1],i[0][2],i[1]),sbr.buildQueue.shift(),$-=sbr.COST_BUILD_DATA;else if(4!==i.length||Array.isArray(i[0]))sbr.buildQueue.shift();else{let Z=i[3];"object"==typeof Z&&null!==Z?(api.setBlockData(i[0],i[1],i[2],Z),$-=sbr.COST_BUILD_DATA):(api.setBlock(i[0],i[1],i[2],String(Z)),$-=sbr.COST_BUILD_RECT/10),sbr.buildQueue.shift()}}catch(ee){let et=ee.message?ee.message.toLowerCase():"";if(et.includes("rate limit"))sbr.rateLimitCooldown=5;else if(et.includes("interrupted"))break;else api.log("sbr error: "+ee.message),sbr.buildQueue.shift()}}};{let e=(t,l,u,n)=>{("number"!=typeof n||isNaN(n))&&(n=1),("number"!=typeof l||isNaN(l))&&(l=0),("number"!=typeof u||isNaN(u))&&(u=l,l=0),n=Math.abs(n)*Math.sign(u-l),e.stack.push({cb:t,start:l,end:u,inc:n,count:0})};e.stack=[],e.tickBudget=100,e.defaultBudgetUsed=1,e.free=()=>!e.stack.length,e.kill=()=>void(e.stack=[]),e.tick=()=>{let t=e.tickBudget;for(;t>0&&e.stack.length>0;){let l=e.stack[e.stack.length-1],u=l.count*l.inc+l.start;(l.inc>0?u<l.end:u>l.end)?(t-=l.cb(u)??e.defaultBudgetUsed,l.count++):e.stack.pop()}},e.levels=(t,l)=>{let u=t;for(let n=0;n<l.length;n++){let $=u,[s,i,o]=l[l.length-1-n];u=t=>e(e=>$([...t,e]),s,i,o)}u([])},sbr.ior=e}`;
+        const SBR_WORLD_CODE = `/*sbr by Ocelote, licensable under CC0*/(sbr=function(...e){e.length>0&&sbr.rawInputQueue.push(e)}).rawInputQueue=[],sbr.buildQueue=[],sbr.rateLimitCooldown=0,sbr.SPECIAL_BLOCK_IDS=new Set([204,205,206,207,952,953,954,955,1291,1292,1293,1294,1510,2088,2089,2090,2091]),sbr.MAX_RECT_VOLUME=360,sbr.TICK_BUDGET=250,sbr.COST_SCAN_BLOCK=.5,sbr.COST_SCAN_DATA=.7,sbr.COST_BUILD_RECT=10,sbr.COST_BUILD_DATA=1,sbr.COST_SPLIT_RECT=2,sbr.COST_CHUNK_CHECK=8,sbr.free=function(){return 0===sbr.rawInputQueue.length&&0===sbr.buildQueue.length&&sbr.ior.free()},sbr.kill=function(){sbr.rawInputQueue=[],sbr.buildQueue=[],sbr.ior.kill()},sbr.getVol=function(e,t){let l=[t[0]-e[0]+1,t[1]-e[1]+1,t[2]-e[2]+1];return{dims:l,vol:l[0]*l[1]*l[2]}},sbr.deconstructWalls=function(e){let[t,l,u,n,$]=e,s=[],i=Math.min(t[0],l[0]),o=Math.min(t[1],l[1]),a=Math.min(t[2],l[2]),r=Math.max(t[0],l[0]),c=Math.max(t[1],l[1]),_=Math.max(t[2],l[2]);n&&s.push([[i,o,a],[r,o,_],u]),$&&s.push([[i,c,a],[r,c,_],u]),s.push([[i,o,a],[i,c,_],u]),s.push([[r,o,a],[r,c,_],u]);let C=n?o+1:o,d=$?c-1:c;return C<=d&&i+1<=r-1&&(s.push([[i+1,C,a],[r-1,d,a],u]),s.push([[i+1,C,_],[r-1,d,_],u])),s},sbr.checkAndLoadChunks=function(e,t){let l=[Math.min(e[0],t[0]),Math.min(e[1],t[1]),Math.min(e[2],t[2])],u=[Math.max(e[0],t[0]),Math.max(e[1],t[1]),Math.max(e[2],t[2])],n=!0;for(let $=l[0];$<=u[0];$+=32)for(let s=l[1];s<=u[1];s+=32)for(let i=l[2];i<=u[2];i+=32)api.isBlockInLoadedChunk($,s,i)||(api.getBlockId($,s,i),n=!1);return n},sbr.getTaskRange=function(e){return e?"gclone"===e[0]||"rect_with_data"===e[0]?[e[1],e[2]]:3===e.length&&Array.isArray(e[0])?[e[0],e[1]]:2===e.length&&Array.isArray(e[0])?[e[0],e[0]]:[e.slice(0,3),e.slice(0,3)]:[[0,0,0],[0,0,0]]},sbr.tick=function(){if(sbr.rateLimitCooldown>0){sbr.rateLimitCooldown--;return}if(0===sbr.rawInputQueue.length&&0===sbr.buildQueue.length){sbr.ior.tick();return}let e=0;for(;sbr.rawInputQueue.length>0&&e<50;){e++;let t=sbr.rawInputQueue.shift();for(;1===t.length&&Array.isArray(t[0]);)t=t[0];t.length>0&&(!Array.isArray(t[0])||Array.isArray(t[0])&&!Array.isArray(t[0][0]))&&(t=[t]);for(let l=0;l<t.length;l++){let u=t[l];if(u&&Array.isArray(u)){if(5===u.length&&"boolean"==typeof u[3]){let n=sbr.deconstructWalls(u);t.splice(l,1,...n),l--}else 4===u.length&&u.every(e=>Array.isArray(e))?sbr.buildQueue.push(["gclone",...u,{scanPos:null,run:null}]):sbr.buildQueue.push(u)}}}let $=sbr.TICK_BUDGET,s=0;for(;$>0&&sbr.buildQueue.length>0&&s<1e3;){s++;let i=sbr.buildQueue[0],[o,a]=sbr.getTaskRange(i);if(!sbr.checkAndLoadChunks(o,a)){$-=sbr.COST_CHUNK_CHECK;for(let r=1;r<Math.min(sbr.buildQueue.length,15)&&$>=sbr.COST_CHUNK_CHECK;r++){let[c,_]=sbr.getTaskRange(sbr.buildQueue[r]);sbr.checkAndLoadChunks(c,_),$-=sbr.COST_CHUNK_CHECK}break}try{if("gclone"===i[0]){let[C,d,f,h,T,g]=i,k=[Math.min(d[0],f[0]),Math.min(d[1],f[1]),Math.min(d[2],f[2])],A=[Math.max(d[0],f[0]),Math.max(d[1],f[1]),Math.max(d[2],f[2])],m=[A[0]-k[0]+1,A[1]-k[1]+1,A[2]-k[2]+1],b=[h[0]-d[0],h[1]-d[1],h[2]-d[2]];null===g.scanPos&&(g.scanPos=[0,0,0],g.run={startPos:[0,0,0],blockType:api.getBlockId(k[0],k[1],k[2])});let p=!1;for(;$>=sbr.COST_SCAN_BLOCK;){$-=sbr.COST_SCAN_BLOCK;let[S,B,I]=g.scanPos,L=api.getBlockId(k[0]+S,k[1]+B,k[2]+I);if(L!==g.run.blockType||S===m[0]-1){let O=g.run.startPos,Q=L!==g.run.blockType?S-1:S,D=g.run.blockType;if(D&&0!==D){let y=[k[0]+O[0]+b[0],k[1]+B+b[1],k[2]+I+b[2]],P=[k[0]+Q+b[0],k[1]+B+b[1],k[2]+I+b[2]];if(sbr.SPECIAL_BLOCK_IDS.has(D)){let U=[];for(let E=O[0];E<=Q&&$>=sbr.COST_SCAN_DATA;E++)$-=sbr.COST_SCAN_DATA,U.push(api.getBlockData(k[0]+E,k[1]+B,k[2]+I));sbr.buildQueue.splice(1,0,["rect_with_data",y,P,String(D),U,0])}else sbr.buildQueue.splice(1,0,[y,P,String(D)])}g.run={startPos:[S,B,I],blockType:L}}if(g.scanPos[0]++,g.scanPos[0]>=m[0]&&(g.scanPos[0]=0,g.scanPos[1]++,g.scanPos[1]>=m[1]&&(g.scanPos[1]=0,g.scanPos[2]++),g.scanPos[2]<m[2]&&(g.run={startPos:[...g.scanPos],blockType:api.getBlockId(k[0],k[1]+g.scanPos[1],k[2]+g.scanPos[2])})),g.scanPos[2]>=m[2]){p=!0;break}}p&&sbr.buildQueue.shift()}else if("rect_with_data"===i[0]){let[w,K,x,R,N,H]=i;0===H&&(api.setBlockRect(K,x,R),$-=sbr.COST_BUILD_RECT);let v=H;for(;$>=sbr.COST_BUILD_DATA&&v<N.length;)$-=sbr.COST_BUILD_DATA,null!==N[v]&&api.setBlockData(K[0]+v,K[1],K[2],N[v]),v++;v>=N.length?sbr.buildQueue.shift():i[5]=v}else if(3===i.length&&Array.isArray(i[0])){let[M,V,G]=i,W=[Math.min(M[0],V[0]),Math.min(M[1],V[1]),Math.min(M[2],V[2])],X=[Math.max(M[0],V[0]),Math.max(M[1],V[1]),Math.max(M[2],V[2])],{dims:j,vol:q}=sbr.getVol(W,X);if(q>sbr.MAX_RECT_VOLUME){let z=j.indexOf(Math.max(...j)),F=W[z]+Math.floor(j[z]/2)-1,J=[...X];J[z]=F;let Y=[...W];Y[z]=F+1,sbr.buildQueue.splice(0,1,[W,J,G],[Y,X,G]),$-=sbr.COST_SPLIT_RECT}else api.setBlockRect(W,X,String(G)),sbr.buildQueue.shift(),$-=sbr.COST_BUILD_RECT}else if(2===i.length&&Array.isArray(i[0]))api.setBlockData(i[0][0],i[0][1],i[0][2],i[1]),sbr.buildQueue.shift(),$-=sbr.COST_BUILD_DATA;else if(4!==i.length||Array.isArray(i[0]))sbr.buildQueue.shift();else{let Z=i[3];"object"==typeof Z&&null!==Z?(api.setBlockData(i[0],i[1],i[2],Z),$-=sbr.COST_BUILD_DATA):(api.setBlock(i[0],i[1],i[2],String(Z)),$-=sbr.COST_BUILD_RECT/10),sbr.buildQueue.shift()}}catch(ee){let et=ee.message?ee.message.toLowerCase():"";if(et.includes("rate limit"))sbr.rateLimitCooldown=5;else if(et.includes("interrupted"))break;else api.log("sbr error: "+ee.message),sbr.buildQueue.shift()}}};{let e=(t,l,u,n)=>{("number"!=typeof n||isNaN(n))&&(n=1),("number"!=typeof l||isNaN(l))&&(l=0),("number"!=typeof u||isNaN(u))&&(u=l,l=0),n=Math.abs(n)*Math.sign(u-l),e.stack.push({cb:t,start:l,end:u,inc:n,count:0})};e.stack=[],e.tickBudget=100,e.defaultBudgetUsed=1,e.free=()=>!e.stack.length,e.kill=()=>void(e.stack=[]),e.tick=()=>{let t=e.tickBudget;for(;t>0&&e.stack.length>0;){let l=e.stack[e.stack.length-1],u=l.count*l.inc+l.start;(l.inc>0?u<l.end:u>l.end)?(t-=l.cb(u)??e.defaultBudgetUsed,l.count++):e.stack.pop()}},e.levels=(t,l)=>{let u=t;for(let n=0;n<l.length;n++){let $=u,[s,i,o]=l[l.length-1-n];u=t=>e(e=>$([...t,e]),s,i,o)}u([])},sbr.ior=e}
+
+// Tick Callback
+function tick() {
+    sbr.tick();
+}`;
 
         let replayBuffer = null;
         let fileName = '';
         let parsedData = null;
-        let generatedCodeString = '';
+        let generatedBlockCodeString = '';
 
         function switchTab(tabId) {
             document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -4719,16 +4746,16 @@
 
         function togglePlayerDetails(index) {
             const row = document.getElementById(`details-${index}`);
-            if (row) {
-                row.classList.toggle('active');
-            }
+            if (row) row.classList.toggle('active');
         }
 
         function toggleBlockDetails(id) {
             const row = document.getElementById(`block-details-${id}`);
-            if (row) {
-                row.classList.toggle('active');
-            }
+            if (row) row.classList.toggle('active');
+        }
+
+        function yieldToUI() {
+            return new Promise(resolve => setTimeout(resolve, 0));
         }
 
         function readUVarint(buf, off) {
@@ -4782,10 +4809,6 @@
             const i = seekTag(buf, pos, expectedTag, 0x06, maxEnd, 32); if (i < 0) return null;
             try { const r = readAvroString(buf, i + 2); return { ...r, tagOffset: i }; } catch { return null; }
         }
-        function parseBoolAfterTag(buf, pos, expectedTag, maxEnd) {
-            const i = seekTag(buf, pos, expectedTag, 0x02, maxEnd, 32); if (i < 0 || i + 3 > maxEnd) return null;
-            return { value: !!buf[i + 2], next: i + 3, tagOffset: i };
-        }
         function parseDoubleAfterTag(buf, pos, expectedTag, maxEnd) {
             const i = seekTag(buf, pos, expectedTag, 0x04, maxEnd, 32); if (i < 0 || i + 10 > maxEnd) return null;
             return { value: d64(buf, i + 2), next: i + 10, tagOffset: i };
@@ -4829,31 +4852,17 @@
             }
 
             const details = {
-                helmet: 'None',
-                chestplate: 'None',
-                gauntlets: 'None',
-                leggings: 'None',
-                boots: 'None',
-                nameBgColor: 'None',
-                subtitle: 'None',
-                skinParts: [],
-                cape: 'None',
-                nameColor: 'None',
-                profileEffect: 'None',
-                emotes: 'None'
+                helmet: 'None', chestplate: 'None', gauntlets: 'None', leggings: 'None', boots: 'None',
+                nameBgColor: 'None', subtitle: 'None', skinParts: [], cape: 'None', nameColor: 'None',
+                profileEffect: 'None', emotes: 'None'
             };
 
             const skinKeys = ['hat', 'head', 'body', 'legs', 'shoes', 'eyebrows', 'eyes', 'skin', 'back'];
 
             for (let i = 0; i < strings.length; i++) {
                 const s = strings[i];
-
-                if (s === 'Helmet' && strings[i + 1]) {
-                    details.helmet = strings[i + 1] + (strings[i + 2] && strings[i + 2].startsWith('Tier') ? ' ' + strings[i + 2] : '');
-                }
-                if (s.includes('Chestplate')) {
-                    details.chestplate = s.split('\$')[1] || s;
-                }
+                if (s === 'Helmet' && strings[i + 1]) details.helmet = strings[i + 1] + (strings[i + 2] && strings[i + 2].startsWith('Tier') ? ' ' + strings[i + 2] : '');
+                if (s.includes('Chestplate')) details.chestplate = s.split('\$')[1] || s;
                 if (s.includes('Gauntlets')) {
                     let name = s.replace(/\\"/g, '').replace('Gauntlets', '').trim();
                     details.gauntlets = name ? `${name} Gauntlets` : 'Gauntlets';
@@ -4862,27 +4871,20 @@
                     let name = s.replace('Leggings', '').trim();
                     details.leggings = name ? `${name} Leggings` : 'Leggings';
                 }
-                if (s === 'Boots' && strings[i + 1]) {
-                    details.boots = strings[i + 1];
-                }
-
+                if (s === 'Boots' && strings[i + 1]) details.boots = strings[i + 1];
                 if (s.startsWith('{') && s.includes('backgroundColor')) {
                     try {
                         const json = JSON.parse(s);
                         details.nameBgColor = cleanValue(json.backgroundColor);
-                        if (json.subtitle && Array.isArray(json.subtitle)) {
-                            details.subtitle = json.subtitle.map(sub => sub.str).join('').trim() || 'None';
-                        }
+                        if (json.subtitle && Array.isArray(json.subtitle)) details.subtitle = json.subtitle.map(sub => sub.str).join('').trim() || 'None';
                     } catch { }
                 }
-
                 for (const key of skinKeys) {
                     if (s.startsWith(key + '_') || (s.startsWith('skin') && s !== 'skin')) {
                         details.skinParts.push(s);
                         break;
                     }
                 }
-
                 if (s.startsWith('cape')) details.cape = cleanValue(s);
                 if (s.startsWith('nameColour')) details.nameColor = cleanValue(s.replace('nameColour', '').trim());
                 if (s.includes('profileEffect')) details.profileEffect = cleanValue(s.split('\$')[1] || s);
@@ -4911,25 +4913,16 @@
                     if (chestRaw) {
                         const itemsArr = JSON.parse(chestRaw);
                         const valid = itemsArr.filter(x => x !== null);
-                        if (valid.length > 0) {
-                            formattedItems = valid.map(i => `${i.amount ? i.amount + 'x ' : ''}${i.name}`).join(', ');
-                        } else {
-                            formattedItems = "Empty Chest";
-                        }
+                        formattedItems = valid.length > 0 ? valid.map(i => `${i.amount ? i.amount + 'x ' : ''}${i.name}`).join(', ') : "Empty Chest";
                     }
 
-                    matches.push({
-                        id: idx++,
-                        key: "persisted.chestStr",
-                        raw: chestRaw,
-                        summary: formattedItems
-                    });
+                    matches.push({ id: idx++, key: "persisted.chestStr", raw: chestRaw, summary: formattedItems });
                 } catch { }
             }
             return matches;
         }
 
-        function parseReplay(buf) {
+        async function parseReplay(buf) {
             const entityTypeMarkers = findAll(buf, encoder.encode('\x2a\x00\x06'));
 
             function nextEntityBoundary(after) {
@@ -4940,7 +4933,11 @@
 
             const playerOccurrences = [];
             const playerBytes = encoder.encode('Player');
-            for (const typeOff of findAll(buf, playerBytes)) {
+            const foundPlayers = findAll(buf, playerBytes);
+
+            for (let idx = 0; idx < foundPlayers.length; idx++) {
+                if (idx % 100 === 0) await yieldToUI();
+                const typeOff = foundPlayers[idx];
                 const maxEnd = Math.min(nextEntityBoundary(typeOff), typeOff + 4096);
                 let p = typeOff + 6;
                 const nameTag = seekTag(buf, p, 0x02, 0x06, maxEnd, 64);
@@ -4950,14 +4947,11 @@
                 let q = name.next;
                 const posField = parseVec3AfterTag(buf, q, 0x04, maxEnd);
                 const rotField = posField ? parseVec3AfterTag(buf, posField.next, 0x06, maxEnd) : null;
-                const scale = rotField ? parseDoubleAfterTag(buf, rotField.next, 0x08, maxEnd) : null;
                 const speed = parseDoubleAfterTag(buf, q, 0x0a, maxEnd);
                 const pitch = parseDoubleAfterTag(buf, q, 0x10, maxEnd);
                 const held = parseStringAfterTag(buf, q, 0x14, maxEnd);
                 const heldTier = parseStringAfterTag(buf, q, 0x16, maxEnd);
                 const pose = parseStringAfterTag(buf, q, 0x18, maxEnd);
-
-                const extraDetails = parseReadableStrings(buf, q, maxEnd);
 
                 playerOccurrences.push({
                     entityId: entityIdBefore(buf, typeOff - 4),
@@ -4969,7 +4963,7 @@
                     heldItem: held?.value || null,
                     heldItemTier: heldTier?.value || null,
                     pose: pose?.value || null,
-                    details: extraDetails
+                    details: parseReadableStrings(buf, q, maxEnd)
                 });
             }
 
@@ -4980,6 +4974,7 @@
 
             const mobs = [];
             for (const t of MOB_TYPES) {
+                await yieldToUI();
                 for (const off of findAll(buf, encoder.encode(t))) {
                     const maxEnd = Math.min(nextEntityBoundary(off), off + 4096);
                     let q = off + encoder.encode(t).length;
@@ -5003,7 +4998,11 @@
             const meshRecords = [];
             const spawnerMap = new Map();
             const chestMap = new Map();
-            for (const off of findAll(buf, encoder.encode('Mesh|'))) {
+            const meshes = findAll(buf, encoder.encode('Mesh|'));
+
+            for (let idx = 0; idx < meshes.length; idx++) {
+                if (idx % 200 === 0) await yieldToUI();
+                const off = meshes[idx];
                 const scanEnd = Math.min(buf.length, off + 1024);
                 let end = -1;
                 for (let i = off; i < scanEnd; i++) if (buf[i] === 0x7d) { end = i + 1; break; }
@@ -5029,8 +5028,6 @@
                 }
             }
 
-            const blockDataEntries = extractBlockPersistedData(buf);
-
             return {
                 source: fileName,
                 players: [...playerMap.values()],
@@ -5038,7 +5035,7 @@
                 chests: [...chestMap.values()],
                 mobs,
                 meshRecords,
-                blockDataEntries
+                blockDataEntries: extractBlockPersistedData(buf)
             };
         }
 
@@ -5067,12 +5064,12 @@
                 if (len < 4 || len > 20000 || q + len > replayBuffer.length) return null;
 
                 const blobStart = q, blobEnd = q + len;
-                let bq = blobStart, total = 0, runs = 0;
+                let bq = blobStart, total = 0;
                 while (bq < blobEnd) {
                     const rr = readUVarint(replayBuffer, bq); const run = Number(rr.value); bq = rr.next;
                     const rb = readUVarint(replayBuffer, bq); const blockId = Number(rb.value); bq = rb.next;
                     if (run <= 0 || blockId < 0 || total + run > 32768) return null;
-                    total += run; runs++;
+                    total += run;
                 }
                 if (bq !== blobEnd || total !== 32768) return null;
 
@@ -5083,10 +5080,12 @@
             } catch { return null; }
         }
 
-        function findTerrainChunks() {
+        async function findTerrainChunks() {
             const found = [];
             let off = 0;
+            let counter = 0;
             while (off < replayBuffer.length) {
+                if (counter++ % 50000 === 0) await yieldToUI();
                 if (replayBuffer[off] === 0x06) {
                     const c = tryParseReplayChunkAt(off);
                     if (c) {
@@ -5105,16 +5104,13 @@
         function extractBlockData(chunks) {
             const blockData = {};
             for (const c of chunks) {
-                let bq = 0;
-                let blockIndex = 0;
+                let bq = 0, blockIndex = 0;
                 const buf = c.blocks;
                 while (bq < buf.length) {
                     const rr = readUVarint(buf, bq); const amount = Number(rr.value); bq = rr.next;
                     const rb = readUVarint(buf, bq); const id = Number(rb.value); bq = rb.next;
 
-                    if (!blockData[id]) {
-                        blockData[id] = { count: 0, positions: [] };
-                    }
+                    if (!blockData[id]) blockData[id] = { count: 0, positions: [] };
                     blockData[id].count += amount;
 
                     if (id !== 0) {
@@ -5123,12 +5119,7 @@
                             const lx = Math.floor(idx / (32 * 32));
                             const ly = Math.floor(idx / 32) % 32;
                             const lz = idx % 32;
-
-                            const gx = c.x * 32 + lx;
-                            const gy = c.y * 32 + ly;
-                            const gz = c.z * 32 + lz;
-
-                            blockData[id].positions.push([gx, gy, gz]);
+                            blockData[id].positions.push([c.x * 32 + lx, c.y * 32 + ly, c.z * 32 + lz]);
                         }
                     }
                     blockIndex += amount;
@@ -5137,9 +5128,11 @@
             return blockData;
         }
 
-        function compressBlocksToBoxes(chunks) {
+        async function compressBlocksToBoxes(chunks) {
             const grid = new Map();
-            for (const c of chunks) {
+            for (let cIdx = 0; cIdx < chunks.length; cIdx++) {
+                if (cIdx % 20 === 0) await yieldToUI();
+                const c = chunks[cIdx];
                 let bq = 0, idx = 0;
                 const buf = c.blocks;
                 while (bq < buf.length) {
@@ -5152,10 +5145,7 @@
                             const lx = Math.floor(curIdx / 1024);
                             const ly = Math.floor(curIdx / 32) % 32;
                             const lz = curIdx % 32;
-                            const gx = c.x * 32 + lx;
-                            const gy = c.y * 32 + ly;
-                            const gz = c.z * 32 + lz;
-                            grid.set(`${gx},${gy},${gz}`, id);
+                            grid.set(`${c.x * 32 + lx},${c.y * 32 + ly},${c.z * 32 + lz}`, id);
                         }
                     }
                     idx += amount;
@@ -5164,25 +5154,22 @@
 
             const boxes = [];
             const visited = new Set();
+            let processCount = 0;
 
             for (const [key, id] of grid.entries()) {
+                if (++processCount % 5000 === 0) await yieldToUI();
                 if (visited.has(key)) continue;
                 const [sx, sy, sz] = key.split(',').map(Number);
 
                 let ex = sx;
-                while (grid.get(`${ex + 1},${sy},${sz}`) === id && !visited.has(`${ex + 1},${sy},${sz}`)) {
-                    ex++;
-                }
+                while (grid.get(`${ex + 1},${sy},${sz}`) === id && !visited.has(`${ex + 1},${sy},${sz}`)) ex++;
 
                 let ey = sy;
                 let canGrowY = true;
                 while (canGrowY) {
                     const nextY = ey + 1;
                     for (let x = sx; x <= ex; x++) {
-                        if (grid.get(`${x},${nextY},${sz}`) !== id || visited.has(`${x},${nextY},${sz}`)) {
-                            canGrowY = false;
-                            break;
-                        }
+                        if (grid.get(`${x},${nextY},${sz}`) !== id || visited.has(`${x},${nextY},${sz}`)) { canGrowY = false; break; }
                     }
                     if (canGrowY) ey = nextY;
                 }
@@ -5193,10 +5180,7 @@
                     const nextZ = ez + 1;
                     for (let x = sx; x <= ex; x++) {
                         for (let y = sy; y <= ey; y++) {
-                            if (grid.get(`${x},${y},${nextZ}`) !== id || visited.has(`${x},${y},${nextZ}`)) {
-                                canGrowZ = false;
-                                break;
-                            }
+                            if (grid.get(`${x},${y},${nextZ}`) !== id || visited.has(`${x},${y},${nextZ}`)) { canGrowZ = false; break; }
                         }
                         if (!canGrowZ) break;
                     }
@@ -5205,9 +5189,7 @@
 
                 for (let x = sx; x <= ex; x++) {
                     for (let y = sy; y <= ey; y++) {
-                        for (let z = sz; z <= ez; z++) {
-                            visited.add(`${x},${y},${z}`);
-                        }
+                        for (let z = sz; z <= ez; z++) visited.add(`${x},${y},${z}`);
                     }
                 }
 
@@ -5217,62 +5199,60 @@
             return boxes;
         }
 
-        function generateAndDisplayCode() {
-            const chunks = findTerrainChunks();
-            if (!chunks.length) return alert('No terrain chunks found.');
-
+        async function generateAndDisplayCode() {
             const btnGen = document.getElementById('btnGenerateCode');
             btnGen.innerText = 'Building Code...';
             btnGen.disabled = true;
 
-            setTimeout(() => {
-                const boxes = compressBlocksToBoxes(chunks);
-
-                const sbrCalls = boxes.map(b => {
-                    const blockTarget = BLOCK_NAMES[b.id] ? JSON.stringify(BLOCK_NAMES[b.id]) : `api.blockIdToBlockName(${b.id})`;
-                    if (b.min[0] === b.max[0] && b.min[1] === b.max[1] && b.min[2] === b.max[2]) {
-                        return `sbr(${b.min[0]},${b.min[1]},${b.min[2]},${blockTarget});`;
-                    }
-                    return `sbr([${b.min.join(',')}],[${b.max.join(',')}],${blockTarget});`;
-                }).join('\n');
-
-                generatedCodeString = `${SBR_LIB}
-
-// Enqueue block commands
-${sbrCalls}
-
-// Tick Callback
-function tick() {
-    sbr.tick();
-    //rest of your code
-}
-`;
-
-                const previewEl = document.getElementById('codePreviewBox');
-                previewEl.innerText = generatedCodeString;
-                previewEl.style.display = 'block';
-
-                document.getElementById('btnCopyCode').disabled = false;
-                document.getElementById('btnDownloadCode').disabled = false;
-
-                btnGen.innerText = 'Re-Generate Code';
+            const chunks = await findTerrainChunks();
+            if (!chunks.length) {
+                btnGen.innerText = 'Generate Code';
                 btnGen.disabled = false;
-            }, 50);
+                return alert('No terrain chunks found.');
+            }
+
+            const boxes = await compressBlocksToBoxes(chunks);
+
+            const sbrCalls = boxes.map(b => {
+                const blockTarget = BLOCK_NAMES[b.id] ? JSON.stringify(BLOCK_NAMES[b.id]) : `api.blockIdToBlockName(${b.id})`;
+                if (b.min[0] === b.max[0] && b.min[1] === b.max[1] && b.min[2] === b.max[2]) {
+                    return `sbr(x + (${b.min[0]}), y + (${b.min[1]}), z + (${b.min[2]}), ${blockTarget});`;
+                }
+                return `sbr([x + (${b.min[0]}), y + (${b.min[1]}), z + (${b.min[2]})], [x + (${b.max[0]}), y + (${b.max[1]}), z + (${b.max[2]})], ${blockTarget});`;
+            }).join('\n');
+
+            generatedBlockCodeString = `// Automatically gets position of this Code Block
+const [x, y, z] = thisPos;
+
+// Queue Relative Commands
+${sbrCalls}`;
+
+            document.getElementById('worldCodePreview').innerText = SBR_WORLD_CODE;
+            document.getElementById('blockCodePreview').innerText = generatedBlockCodeString;
+
+            document.getElementById('btnCopyWorldCode').disabled = false;
+            document.getElementById('btnCopyBlockCode').disabled = false;
+            document.getElementById('btnDownloadCode').disabled = false;
+
+            btnGen.innerText = 'Re-Generate Code';
+            btnGen.disabled = false;
         }
 
-        function copyGeneratedCode() {
-            if (!generatedCodeString) return;
-            navigator.clipboard.writeText(generatedCodeString).then(() => {
-                const copyBtn = document.getElementById('btnCopyCode');
-                const origText = copyBtn.innerText;
-                copyBtn.innerText = 'Copied!';
-                setTimeout(() => copyBtn.innerText = origText, 2000);
+        function copyCode(elementId, buttonId) {
+            const codeText = document.getElementById(elementId).innerText;
+            if (!codeText) return;
+            navigator.clipboard.writeText(codeText).then(() => {
+                const btn = document.getElementById(buttonId);
+                const origText = btn.innerText;
+                btn.innerText = 'Copied!';
+                setTimeout(() => btn.innerText = origText, 2000);
             });
         }
 
         function downloadCodeFile() {
-            if (!generatedCodeString) return;
-            const blob = new Blob([generatedCodeString], { type: 'text/javascript' });
+            if (!generatedBlockCodeString) return;
+            const fullScript = `// ==================== WORLD CODE ====================\n${SBR_WORLD_CODE}\n\n// ==================== CODE BLOCK ====================\n${generatedBlockCodeString}`;
+            const blob = new Blob([fullScript], { type: 'text/javascript' });
             const scriptName = fileName.replace(/\.bloxdreplay\$/i, '') + '_sbr_builder.js';
             const a = document.createElement('a');
             a.href = URL.createObjectURL(blob);
@@ -5280,17 +5260,11 @@ function tick() {
             a.click();
         }
 
-        function zigzagEncode32(n) {
-            return (n << 1) ^ (n >> 31);
-        }
-
+        function zigzagEncode32(n) { return (n << 1) ^ (n >> 31); }
         function avroInt32(n) {
             let zz = zigzagEncode32(n) >>> 0;
             const out = [];
-            while (zz >= 0x80) {
-                out.push((zz & 0x7f) | 0x80);
-                zz >>>= 7;
-            }
+            while (zz >= 0x80) { out.push((zz & 0x7f) | 0x80); zz >>>= 7; }
             out.push(zz & 0x7f);
             return new Uint8Array(out);
         }
@@ -5319,10 +5293,7 @@ function tick() {
                     for (let i = 0; i < col.length; i += limit) groups.push(col.slice(i, i + limit));
                     continue;
                 }
-                if (cur.length && cur.length + col.length > limit) {
-                    groups.push(cur);
-                    cur = [];
-                }
+                if (cur.length && cur.length + col.length > limit) { groups.push(cur); cur = []; }
                 cur.push(...col);
             }
             if (cur.length) groups.push(cur);
@@ -5338,48 +5309,39 @@ function tick() {
             const offsetY = (minY - globalMinY) * 32;
             const offsetZ = (minZ - globalMinZ) * 32;
 
-            const rel = group.map(c => ({
-                x: c.x - minX,
-                y: c.y - minY,
-                z: c.z - minZ,
-                blocks: c.blocks
-            }));
-
-            const sizeX = (maxX - minX + 1) * 32;
-            const sizeY = (maxY - minY + 1) * 32;
-            const sizeZ = (maxZ - minZ + 1) * 32;
+            const rel = group.map(c => ({ x: c.x - minX, y: c.y - minY, z: c.z - minZ, blocks: c.blocks }));
+            const sizeX = (maxX - minX + 1) * 32, sizeY = (maxY - minY + 1) * 32, sizeZ = (maxZ - minZ + 1) * 32;
 
             let baseName = fileName.replace(/\.bloxdreplay\$/i, '');
             let schemName = totalParts > 1 ? `part${partIndex + 1}_offset[X${offsetX}_Y${offsetY}_Z${offsetZ}]` : baseName;
 
-            const parts = [];
-            parts.push(new Uint8Array([4, 0, 0, 0]));
-
+            const parts = [new Uint8Array([4, 0, 0, 0])];
             const nameBytes = new TextEncoder().encode(schemName);
             parts.push(avroInt32(nameBytes.length), nameBytes);
-
             parts.push(avroInt32(0), avroInt32(0), avroInt32(0));
             parts.push(avroInt32(sizeX), avroInt32(sizeY), avroInt32(sizeZ));
-
             parts.push(avroInt32(rel.length));
             for (const c of rel) {
                 parts.push(avroInt32(c.x), avroInt32(c.y), avroInt32(c.z));
                 parts.push(avroInt32(c.blocks.length), c.blocks);
             }
             parts.push(avroInt32(0));
-
             for (const v of [0, 4, 45, 14, 0, 0]) parts.push(avroInt32(v));
 
             return { binary: concatBuffers(parts), name: schemName };
         }
 
         async function exportSchematic() {
-            const chunks = findTerrainChunks();
-            if (!chunks.length) return alert('No terrain chunks found.');
-
             const btn = document.getElementById('btnDownloadSchem');
             btn.disabled = true;
             btn.innerText = 'Creating ZIP...';
+
+            const chunks = await findTerrainChunks();
+            if (!chunks.length) {
+                btn.disabled = false;
+                btn.innerText = 'Download ZIP';
+                return alert('No terrain chunks found.');
+            }
 
             const globalMinX = Math.min(...chunks.map(c => c.x));
             const globalMinY = Math.min(...chunks.map(c => c.y));
@@ -5422,19 +5384,19 @@ function tick() {
             const reader = new FileReader();
             reader.onload = async (evt) => {
                 replayBuffer = new Uint8Array(evt.target.result);
-                parsedData = parseReplay(replayBuffer);
+                parsedData = await parseReplay(replayBuffer);
 
-                renderUI();
+                await renderUI();
                 document.getElementById('dropZoneText').innerText = `Loaded: ${fileName}`;
             };
             reader.readAsArrayBuffer(file);
         }
 
-        function renderUI() {
+        async function renderUI() {
             document.getElementById('btnDownloadSchem').disabled = false;
             document.getElementById('btnGenerateCode').disabled = false;
 
-            const chunks = findTerrainChunks();
+            const chunks = await findTerrainChunks();
             document.getElementById('terrainInfo').innerHTML = `<p style="color:var(--accent)">Found <b>${chunks.length}</b> non-empty 32x32x32 terrain chunks.</p>`;
 
             const extractedBlocks = extractBlockData(chunks);
@@ -5460,14 +5422,7 @@ function tick() {
                 detailsRow.id = `block-details-${id}`;
                 detailsRow.className = 'details-row';
 
-                let posContent = '';
-                if (Number(id) === 0) {
-                    posContent = 'Positions for Air blocks are omitted.';
-                } else if (data.positions.length === 0) {
-                    posContent = 'No positions stored.';
-                } else {
-                    posContent = data.positions.map(p => `[${p.join(', ')}]`).join('\n');
-                }
+                let posContent = Number(id) === 0 ? 'Positions for Air blocks are omitted.' : (data.positions.length === 0 ? 'No positions stored.' : data.positions.map(p => `[${p.join(', ')}]`).join('\n'));
 
                 detailsRow.innerHTML = `
                     <td colspan="3">
